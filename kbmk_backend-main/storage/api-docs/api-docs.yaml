@@ -1,0 +1,1029 @@
+openapi: 3.0.0
+info:
+  title: 'KBMK UNMUL API Documentation'
+  description: 'Dokumentasi API untuk team Frontend'
+  contact:
+    email: admin@admin.com
+  license:
+    name: 'Apache 2.0'
+    url: 'http://www.apache.org/licenses/LICENSE-2.0.html'
+  version: 1.0.0
+servers:
+  -
+    url: /api
+paths:
+  /register:
+    post:
+      tags:
+        - Authentication
+      summary: 'Mendaftarkan user baru'
+      description: 'Endpoint untuk membuat akun user baru'
+      operationId: 5d4fa5d5607ed675ba93907e1fc94534
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - username
+                - email
+                - password
+                - password_confirmation
+                - roles
+              properties:
+                username:
+                  type: string
+                  maxLength: 50
+                  example: johndoe
+                email:
+                  type: string
+                  format: email
+                  example: johndoe@example.com
+                password:
+                  type: string
+                  minLength: 6
+                  example: password123
+                password_confirmation:
+                  type: string
+                  example: password123
+                roles:
+                  type: string
+                  enum:
+                    - admin
+                    - superadmin
+                  example: admin
+              type: object
+      responses:
+        201:
+          description: 'Registrasi berhasil'
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    example: 'Register success!'
+                  data:
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                      token:
+                        type: string
+                        example: 1|abcdef123456...
+                      token_type:
+                        type: string
+                        example: Bearer
+                    type: object
+                type: object
+        422:
+          description: 'Error validasi'
+  /login:
+    post:
+      tags:
+        - Authentication
+      summary: 'Login user'
+      description: 'Mendapatkan token autentikasi'
+      operationId: 67d6d0fdd54fba132e1b6f55ca254183
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              required:
+                - email
+                - password
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: johndoe@example.com
+                password:
+                  type: string
+                  example: password123
+              type: object
+      responses:
+        200:
+          description: 'Login berhasil'
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    example: 'Login success!'
+                  data:
+                    properties:
+                      user:
+                        $ref: '#/components/schemas/User'
+                      token:
+                        type: string
+                        example: 1|abcdef123456...
+                      token_type:
+                        type: string
+                        example: Bearer
+                    type: object
+                type: object
+        401:
+          description: 'Email atau password salah'
+  /logout:
+    post:
+      tags:
+        - Authentication
+      summary: 'Logout user'
+      description: 'Menghapus token autentikasi yang sedang aktif'
+      operationId: 28d48c13fca984400ac8de99f54ee13a
+      responses:
+        200:
+          description: 'Logout berhasil'
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    example: 'Logout success!'
+                type: object
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  /me:
+    get:
+      tags:
+        - Authentication
+      summary: 'Mendapatkan data user yang sedang login'
+      description: 'Mengembalikan data user berdasarkan token yang diberikan'
+      operationId: bc2032a379aa97707ccc61511897c120
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    example: 'User data fetched successfully'
+                  data:
+                    $ref: '#/components/schemas/User'
+                type: object
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  /documentations:
+    get:
+      tags:
+        - Documentations
+      summary: 'Menampilkan daftar dokumentasi (dengan paginasi)'
+      operationId: 5fc3487a79802a1975f5658b46bd9691
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Documentation'
+                  links:
+                    type: object
+                  meta:
+                    type: object
+                type: object
+    post:
+      tags:
+        - Documentations
+      summary: 'Menambah dokumentasi baru'
+      description: "Memerlukan autentikasi dan role 'admin'. Mengupload foto."
+      operationId: b518a17518d679c1381e7b7c593b3610
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              required:
+                - nama
+                - deskripsi
+                - tanggal
+                - lokasi
+                - foto
+              properties:
+                nama:
+                  type: string
+                  maxLength: 50
+                deskripsi:
+                  type: string
+                tanggal:
+                  type: string
+                  format: date
+                lokasi:
+                  type: string
+                  maxLength: 255
+                foto:
+                  type: string
+                  format: binary
+              type: object
+      responses:
+        201:
+          description: 'Berhasil dibuat'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Documentation'
+                type: object
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  '/documentations/{id}':
+    get:
+      tags:
+        - Documentations
+      summary: 'Menampilkan detail dokumentasi'
+      operationId: 8f92160da5af359f5035faf9e348fd11
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Documentation'
+                type: object
+        404:
+          description: 'Not found'
+    put:
+      tags:
+        - Documentations
+      summary: 'Memperbarui dokumentasi'
+      description: "Memerlukan autentikasi dan role 'admin'. Dapat mengganti foto."
+      operationId: 387dd643b5fadd1e031c0a3710038b90
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                nama:
+                  type: string
+                  maxLength: 50
+                deskripsi:
+                  type: string
+                tanggal:
+                  type: string
+                  format: date
+                lokasi:
+                  type: string
+                  maxLength: 255
+                foto:
+                  type: string
+                  format: binary
+              type: object
+      responses:
+        200:
+          description: 'Berhasil diperbarui'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Documentation'
+                type: object
+        404:
+          description: 'Not found'
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+    delete:
+      tags:
+        - Documentations
+      summary: 'Menghapus dokumentasi'
+      description: "Memerlukan autentikasi dan role 'admin'"
+      operationId: 9f58ce8dc08de6bcfc6ee100121cae99
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: 'Berhasil dihapus'
+        404:
+          description: 'Not found'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  /pengurus:
+    get:
+      tags:
+        - Pengurus
+      summary: 'Menampilkan daftar pengurus (dengan paginasi)'
+      description: 'Endpoint publik untuk melihat data pengurus'
+      operationId: 6819b06a19ae2b1a6a6b03047df521bb
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Pengurus'
+                  links:
+                    type: object
+                  meta:
+                    properties:
+                      current_page:
+                        type: integer
+                      last_page:
+                        type: integer
+                    type: object
+                type: object
+    post:
+      tags:
+        - Pengurus
+      summary: 'Menambah data pengurus baru'
+      description: "Memerlukan autentikasi dan role 'superadmin'. Mengupload foto."
+      operationId: 968a70d4e1ea103510b99a7786f65fd0
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              required:
+                - nama
+                - divisi
+                - foto
+                - deskripsi
+              properties:
+                nama:
+                  type: string
+                  maxLength: 50
+                divisi:
+                  type: string
+                  maxLength: 50
+                foto:
+                  type: string
+                  format: binary
+                deskripsi:
+                  type: string
+              type: object
+      responses:
+        201:
+          description: 'Berhasil dibuat'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Pengurus'
+                type: object
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  '/pengurus/{id}':
+    get:
+      tags:
+        - Pengurus
+      summary: 'Menampilkan detail pengurus'
+      description: 'Endpoint publik untuk melihat detail satu pengurus'
+      operationId: 27a11dd2fee68d03ece0b0a0d431f565
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Pengurus'
+                type: object
+        404:
+          description: 'Not found'
+    put:
+      tags:
+        - Pengurus
+      summary: 'Memperbarui data pengurus'
+      description: "Memerlukan autentikasi dan role 'superadmin'. Dapat mengganti foto."
+      operationId: 6b741e0346150b1b59fd643091749604
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                nama:
+                  type: string
+                  maxLength: 50
+                divisi:
+                  type: string
+                  maxLength: 50
+                foto:
+                  type: string
+                  format: binary
+                deskripsi:
+                  type: string
+              type: object
+      responses:
+        200:
+          description: 'Berhasil diperbarui'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Pengurus'
+                type: object
+        404:
+          description: 'Not found'
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+    delete:
+      tags:
+        - Pengurus
+      summary: 'Menghapus data pengurus'
+      description: "Memerlukan autentikasi dan role 'superadmin'"
+      operationId: 369b620e24eddd2aa6077b574a5555f9
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: 'Berhasil dihapus'
+        404:
+          description: 'Not found'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  /profile-descs:
+    get:
+      tags:
+        - 'Profile Descriptions'
+      summary: 'Menampilkan semua deskripsi profil'
+      operationId: 0826618d22f0f31b19cf36f31c9e9831
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ProfileDesc'
+                type: object
+    post:
+      tags:
+        - 'Profile Descriptions'
+      summary: 'Menambah deskripsi profil baru'
+      description: "Memerlukan autentikasi dan role 'superadmin'"
+      operationId: cf5735bc67e85435efb54d659b4c33ab
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ProfileDesc'
+      responses:
+        201:
+          description: 'Berhasil dibuat'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ProfileDesc'
+                type: object
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  '/profile-descs/{id}':
+    get:
+      tags:
+        - 'Profile Descriptions'
+      summary: 'Menampilkan detail deskripsi profil'
+      operationId: f241d2a528350d8c650c82a31375f9d8
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ProfileDesc'
+                type: object
+        404:
+          description: 'Not found'
+    put:
+      tags:
+        - 'Profile Descriptions'
+      summary: 'Memperbarui deskripsi profil'
+      description: "Memerlukan autentikasi dan role 'superadmin'"
+      operationId: a6fd4e376899f51fc9dede4d71c97c7e
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                judul:
+                  type: string
+                  maxLength: 50
+                jenis:
+                  type: string
+                  enum:
+                    - about
+                    - visi
+                    - misi
+                deskripsi:
+                  type: string
+              type: object
+      responses:
+        200:
+          description: 'Berhasil diperbarui'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/ProfileDesc'
+                type: object
+        404:
+          description: 'Not found'
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+    delete:
+      tags:
+        - 'Profile Descriptions'
+      summary: 'Menghapus deskripsi profil'
+      description: "Memerlukan autentikasi dan role 'superadmin'"
+      operationId: 0b30fae05a4db71cfa8f6ea108ddb779
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: 'Berhasil dihapus'
+        404:
+          description: 'Not found'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  /schedules:
+    get:
+      tags:
+        - Schedules
+      summary: 'Menampilkan daftar semua jadwal'
+      description: 'Mengembalikan array dari objek jadwal yang diurutkan berdasarkan tanggal'
+      operationId: 5c29d50423d0d6b8699a2135c2fb5fb9
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Schedule'
+                type: object
+    post:
+      tags:
+        - Schedules
+      summary: 'Membuat jadwal baru'
+      description: "Memerlukan autentikasi dan role 'superadmin'"
+      operationId: 7c01405ac6954959e3e88545b2405603
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Schedule'
+      responses:
+        201:
+          description: 'Jadwal berhasil dibuat'
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    example: 'Schedule created successfully'
+                  data:
+                    $ref: '#/components/schemas/Schedule'
+                type: object
+        422:
+          description: 'Error validasi'
+          content:
+            application/json:
+              schema:
+                properties:
+                  nama:
+                    type: array
+                    items:
+                      type: string
+                      example: 'The nama field is required.'
+                  tanggal:
+                    type: array
+                    items:
+                      type: string
+                type: object
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  '/schedules/{id}':
+    get:
+      tags:
+        - Schedules
+      summary: 'Menampilkan detail jadwal berdasarkan ID'
+      description: 'Mengembalikan satu objek jadwal'
+      operationId: 37e90f6bc49dcc1ff99759cc62146615
+      parameters:
+        -
+          name: id
+          in: path
+          description: 'ID dari jadwal'
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Schedule'
+                type: object
+        404:
+          description: 'Jadwal tidak ditemukan'
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    example: 'Schedule not found.'
+                type: object
+    put:
+      tags:
+        - Schedules
+      summary: 'Memperbarui jadwal'
+      description: "Memerlukan autentikasi dan role 'superadmin'"
+      operationId: 856d6d9f76c212ceb91643de33238158
+      parameters:
+        -
+          name: id
+          in: path
+          description: 'ID dari jadwal'
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              properties:
+                nama:
+                  type: string
+                  maxLength: 50
+                tanggal:
+                  type: string
+                  format: date
+                deskripsi:
+                  type: string
+              type: object
+      responses:
+        200:
+          description: 'Jadwal berhasil diperbarui'
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    example: 'Schedule updated successfully'
+                  data:
+                    $ref: '#/components/schemas/Schedule'
+                type: object
+        404:
+          description: 'Schedule not found.'
+        422:
+          description: 'Error validasi.'
+        401:
+          description: Unauthorized.
+      security:
+        -
+          bearerAuth: []
+    delete:
+      tags:
+        - Schedules
+      summary: 'Menghapus jadwal'
+      description: "Memerlukan autentikasi dan role 'superadmin'"
+      operationId: adcce9884f580db32f049a4d1ce6e71e
+      parameters:
+        -
+          name: id
+          in: path
+          description: 'ID dari jadwal'
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: 'Jadwal berhasil dihapus'
+          content:
+            application/json:
+              schema:
+                properties:
+                  message:
+                    type: string
+                    example: 'Schedule deleted successfully.'
+                type: object
+        404:
+          description: 'Schedule not found.'
+        401:
+          description: Unauthorized.
+      security:
+        -
+          bearerAuth: []
+components:
+  schemas:
+    User:
+      required:
+        - username
+        - email
+        - password
+        - roles
+      properties:
+        id:
+          type: integer
+          example: 1
+        username:
+          type: string
+          maxLength: 50
+          example: johndoe
+        email:
+          type: string
+          format: email
+          example: johndoe@example.com
+        roles:
+          type: string
+          enum:
+            - admin
+            - superadmin
+          example: admin
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      type: object
+    Documentation:
+      required:
+        - nama
+        - deskripsi
+        - tanggal
+        - lokasi
+      properties:
+        id:
+          type: integer
+          example: 1
+        nama:
+          type: string
+          maxLength: 50
+          example: 'Kegiatan Bakti Sosial'
+        deskripsi:
+          type: string
+          example: 'Kegiatan sosial di desa Sukamaju.'
+        tanggal:
+          type: string
+          format: date
+          example: '2024-10-20'
+        lokasi:
+          type: string
+          maxLength: 255
+          example: 'Aula Desa Sukamaju'
+        foto:
+          type: string
+          example: documentations/nama_file.jpg
+        foto_url:
+          type: string
+          example: 'http://localhost:8000/storage/documentations/nama_file.jpg'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      type: object
+    Pengurus:
+      required:
+        - nama
+        - divisi
+        - deskripsi
+      properties:
+        id:
+          type: integer
+          example: 1
+        nama:
+          type: string
+          maxLength: 50
+          example: 'Nanda Arianto'
+        divisi:
+          type: string
+          maxLength: 50
+          example: Humas
+        foto:
+          type: string
+          example: pengurus/nama_file.jpg
+        foto_url:
+          type: string
+          example: 'http://localhost:8000/storage/pengurus/nama_file.jpg'
+        deskripsi:
+          type: string
+          example: 'Bertanggung jawab atas hubungan masyarakat.'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      type: object
+    ProfileDesc:
+      required:
+        - judul
+        - jenis
+        - deskripsi
+      properties:
+        id:
+          type: integer
+          example: 1
+        judul:
+          type: string
+          maxLength: 50
+          example: 'Tentang Kami'
+        jenis:
+          type: string
+          enum:
+            - about
+            - visi
+            - misi
+          example: about
+        deskripsi:
+          type: string
+          example: 'Kami adalah organisasi yang...'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      type: object
+    Schedule:
+      required:
+        - nama
+        - tanggal
+        - deskripsi
+      properties:
+        id:
+          type: integer
+          example: 1
+        nama:
+          type: string
+          maxLength: 50
+          example: 'Rapat Rutinan'
+        tanggal:
+          type: string
+          format: date
+          example: '2024-12-25'
+        deskripsi:
+          type: string
+          example: 'Membahas agenda kegiatan bulan depan.'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      type: object
+  securitySchemes:
+    bearerAuth:
+      type: http
+      name: Authorization
+      in: header
+      bearerFormat: JWT
+      scheme: bearer
+tags:
+  -
+    name: Authentication
+    description: Authentication
+  -
+    name: Documentations
+    description: Documentations
+  -
+    name: Pengurus
+    description: Pengurus
+  -
+    name: 'Profile Descriptions'
+    description: 'Profile Descriptions'
+  -
+    name: Schedules
+    description: Schedules
