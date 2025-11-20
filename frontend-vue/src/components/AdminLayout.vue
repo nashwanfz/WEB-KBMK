@@ -9,10 +9,6 @@
 
       <!-- SIDEBAR DENGAN MENU NAVIGASI -->
       <nav class="sidebar-menu">
-        <!-- 
-          - @click.prevent="navigateTo(...)" : Memanggil fungsi navigasi saat diklik.
-          - :class="{ active: ... }" : Menandai link yang sedang aktif.
-        -->
         <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminDashboard)" :class="{ active: activeComponent === SuperAdminDashboard }">
           <i class="fas fa-home"></i>
           <span v-if="!isCollapsed">Dashboard</span>
@@ -68,19 +64,21 @@
             <button class="dropdown-toggle">
               <i class="fas fa-user"></i> Admin <i class="fas fa-caret-down"></i>
             </button>
+            
+            <!-- DROPDOWN YANG SUDAH DIPERCANTIK -->
             <div class="dropdown-menu" v-if="dropdownOpen">
-              <a href="#" @click.prevent="navigateTo(SuperAdminDashboard)">Dashboard Admin</a>
-              <a href="#">Logout</a>
+              <a href="#" @click.prevent="navigateTo(SuperAdminDashboard)">
+                <i class="fas fa-tachometer-alt"></i> Dashboard Admin
+              </a>
+              <div class="dropdown-divider"></div>
+              <a href="#" @click.prevent="handleLogout" class="logout-link">
+                <i class="fas fa-sign-out-alt"></i> Logout
+              </a>
             </div>
           </div>
         </div>
       </header>
 
-      <!-- 
-        AREA KONTEN DINAMIS
-        <slot> diganti dengan <component :is="activeComponent" />
-        untuk merender komponen halaman yang dipilih.
-      -->
       <section class="admin-content-area">
         <component :is="activeComponent" />
       </section>
@@ -89,11 +87,10 @@
 </template>
 
 <script setup>
-import { ref, shallowRef } from 'vue'
+import { ref, shallowRef, inject } from 'vue' // TAMBAHKAN INJECT
 import logoOrganisasi from '@/assets/logo.png'
 
 // --- IMPORT SEMUA KOMPONEN HALAMAN ---
-// PASTIKAN NAMA FILE YANG ANDA IMPORT SESUAI DENGAN NAMA FILE DI FOLDER ANDA
 import SuperAdminDashboard from './SuperAdminDashboard.vue'
 import SuperAdminKelolaProfil from './SuperAdminKelolaProfil.vue'
 import SuperAdminKelolaVisiMisi from './SuperAdminKelolaVisi.vue'
@@ -108,20 +105,126 @@ const isCollapsed = ref(false)
 const dropdownOpen = ref(false)
 
 // shallowRef menyimpan definisi komponen yang sedang aktif.
-// Defaultnya adalah SuperAdminDashboard.
 const activeComponent = shallowRef(SuperAdminDashboard)
+
+// --- TAMBAHKAN FUNGSI LOGOUT ---
+const handleLogout = inject('logout');
 
 const toggleSidebar = () => (isCollapsed.value = !isCollapsed.value)
 const toggleDropdown = () => (dropdownOpen.value = !dropdownOpen.value)
 
-// Fungsi untuk mengganti komponen yang aktif saat link diklik
 const navigateTo = (component) => {
   activeComponent.value = component
 }
 </script>
 
 <style>
-/* ... (biarkan style Anda tetap seperti ini) ... */
+/* ... (style Anda yang lain tetap sama) ... */
+
+/* --- GANTI BAGIAN STYLE UNTUK DROPDOWN --- */
+.navbar-right {
+  position: relative;
+}
+
+.dropdown-toggle {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  top: 120%;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-width: 200px;
+  transform-origin: top right;
+  animation: dropdownFadeIn 0.2s ease-out;
+}
+
+/* Tambahkan panah kecil di atas dropdown */
+.dropdown-menu::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  right: 20px;
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid white;
+}
+
+@keyframes dropdownFadeIn {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.dropdown-menu a {
+  color: #333;
+  text-decoration: none;
+  padding: 0.8rem 1.2rem;
+  transition: background 0.3s;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.dropdown-menu a:hover {
+  background: #f8f9fa;
+}
+
+.dropdown-menu i {
+  width: 16px;
+  text-align: center;
+  color: #6c757d;
+}
+
+.dropdown-menu a:hover i {
+  color: #007bce;
+}
+
+/* Garis pemisah */
+.dropdown-divider {
+  height: 1px;
+  background-color: #e9ecef;
+  margin: 0.25rem 0;
+}
+
+/* Style khusus untuk link logout */
+.logout-link {
+  color: #dc3545;
+}
+
+.logout-link i {
+  color: #dc3545;
+}
+
+.logout-link:hover {
+  background-color: #f8d7da;
+  color: #721c24;
+}
+
+.logout-link:hover i {
+  color: #721c24;
+}
+
 html,
 body {
   margin: 0;

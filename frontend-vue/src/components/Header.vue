@@ -1,8 +1,7 @@
 <script setup>
   import logoOrganisasi from '@/assets/logo.png';
 
-  // PERUBAHAN 1: Mendefinisikan "sinyal" (event) bernama 'showLogin'
-  // Ini memberitahu Vue bahwa komponen ini bisa mengirim sinyal keluar.
+  // Emit event 'showLogin' saat tombol login diklik
   const emit = defineEmits(['showLogin']);
 </script>
 
@@ -24,13 +23,18 @@
         <a href="#schedule-section">Jadwal</a>
         <a href="#activities-section">Kegiatan</a>
         <a href="#services-section">Layanan</a>
+        
+        <!-- TAMBAHKAN TOMBOL LOGIN INI -->
+        <button class="login-btn" @click="emit('showLogin')" title="Login Admin">
+          <i class="fas fa-lock"></i>
+        </button>
       </nav>
     </div>
   </header>
 </template>
 
 <style scoped>
-/* Tidak ada perubahan pada CSS di file ini */
+/* Style Anda yang lama... */
 .main-header {
   position: sticky;
   top: 0;
@@ -67,16 +71,38 @@
   font-size: 1.5rem;
   font-weight: bold;
 }
+nav {
+  display: flex;
+  align-items: center; /* Tambahkan ini untuk menyejajarkan tombol */
+}
 nav a {
   color: white;
   text-decoration: none;
   margin-left: 1.5rem;
   font-weight: 500;
   transition: color 0.3s;
-  margin-right:
 }
 nav a:hover {
   color: #08619c;
 }
-</style>
 
+/* TAMBAHKAN STYLE UNTUK TOMBOL LOGIN */
+.login-btn {
+  background-color: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 1.5rem;
+  transition: all 0.3s ease;
+}
+.login-btn:hover {
+  background-color: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+</style>

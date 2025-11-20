@@ -12,6 +12,7 @@
       <i class="fas fa-search"></i>
     </div>
 
+    <!-- KEMBALI MENGGUNAKAN STRUKTUR TABEL -->
     <div class="table-wrapper">
       <table class="data-table">
         <thead>
@@ -27,7 +28,8 @@
         <tbody>
           <tr v-for="anggota in filteredAnggota" :key="anggota.id">
             <td>
-              <img :src="anggota.foto || getDefaultPhoto()" alt="Foto" class="member-photo" />
+              <!-- PERUBAHAN: Ganti class="member-photo" menjadi class="kegiatan-photo" -->
+              <img :src="anggota.foto || getDefaultPhoto()" alt="Foto" class="kegiatan-photo" />
             </td>
             <td>{{ anggota.nama }}</td>
             <td>{{ anggota.jabatan }}</td>
@@ -140,7 +142,7 @@ const anggotaList = ref([
 // --- STATE ---
 const searchQuery = ref('')
 const showModal = ref(false)
-const modalMode = ref('create')
+const modalMode = ref('create') // 'create', 'view', 'edit'
 const formData = ref({
   id: null,
   nama: '',
@@ -313,12 +315,13 @@ const handlePhotoUpload = (event) => {
   vertical-align: middle;
 }
 
-.member-photo {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
+/* --- PERUBAHAN: Ganti style foto lingkaran dengan foto kotak --- */
+.kegiatan-photo {
+  width: 100px;
+  height: 70px;
+  border-radius: 8px;
   object-fit: cover;
-  border: 2px solid #e9ecef;
+  border: 1px solid #e9ecef;
 }
 
 .action-buttons {
@@ -355,10 +358,9 @@ const handlePhotoUpload = (event) => {
   background-color: #5a6268;
 }
 
-/* === PERUBAHAN UTAMA PADA TOMBOL AKSI === */
 .btn-icon {
-  width: 40px; /* Diperbesar dari 36px */
-  height: 40px; /* Diperbesar dari 36px */
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   border: none;
   cursor: pointer;
@@ -366,18 +368,17 @@ const handlePhotoUpload = (event) => {
   align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.1); /* Tambahkan bayangan */
-  font-size: 1rem; /* Pastikan ukuran ikon konsisten */
+  box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+  font-size: 1rem;
 }
 
-/* Warna lebih kontras dengan ikon putih */
 .btn-view { 
   background-color: #2196F3; 
   color: white; 
 }
 .btn-view:hover { 
   background-color: #0d8aee; 
-  transform: scale(1.1); /* Efek zoom saat hover */
+  transform: scale(1.1); 
 }
 
 .btn-edit { 
@@ -386,7 +387,7 @@ const handlePhotoUpload = (event) => {
 }
 .btn-edit:hover { 
   background-color: #e68900; 
-  transform: scale(1.1); /* Efek zoom saat hover */
+  transform: scale(1.1); 
 }
 
 .btn-delete { 
@@ -395,9 +396,8 @@ const handlePhotoUpload = (event) => {
 }
 .btn-delete:hover { 
   background-color: #d32f2f; 
-  transform: scale(1.1); /* Efek zoom saat hover */
+  transform: scale(1.1); 
 }
-
 
 /* --- Modal --- */
 .modal-overlay {
@@ -478,10 +478,10 @@ const handlePhotoUpload = (event) => {
   margin-bottom: 0;
 }
 .current-photo {
-  width: 100px;
-  height: 100px;
+  width: 100%;
+  max-width: 200px;
+  height: auto;
   border-radius: 8px;
-  object-fit: cover;
   margin-top: 0.5rem;
   border: 1px solid #ddd;
 }
