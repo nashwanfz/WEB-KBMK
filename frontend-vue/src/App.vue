@@ -21,7 +21,7 @@ import AdminLayout from './components/AdminLayout.vue';
 // Hanya SATU state untuk mengatur SEMUA tampilan
 const currentView = ref('public'); // Bisa bernilai: 'public', 'login', 'admin'
 
-// Fungsi yang dipanggil saat login berhasil
+// Fungsi yang dipanggil saat login berhasil (dari Login.vue)
 const handleLoginSuccess = () => {
   currentView.value = 'admin';
 };
@@ -31,20 +31,30 @@ const handleLogout = () => {
   currentView.value = 'public';
 };
 
-// Berikan fungsi ke komponen anak
+// Berikan fungsi handleLoginSuccess dan handleLogout ke komponen anak
 provide('login-success', handleLoginSuccess);
 provide('logout', handleLogout);
 </script>
 
+<!-- Style global, tanpa scoped -->
 <style>
-/* Style global untuk seluruh aplikasi */
+/* Style ini berlaku untuk SELURUH aplikasi */
 html, body {
   margin: 0;
   padding: 0;
   font-family: Avenir, Helvetica, Arial, sans-serif;
 }
 
+/* Atur smooth scroll untuk seluruh aplikasi */
 html {
   scroll-behavior: smooth;
+}
+
+html, body {
+  overflow: auto !important; /* Gunakan !important untuk mengesampingkan aturan lain */
+}
+
+#app-wrapper {
+  overflow: auto !important;
 }
 </style>

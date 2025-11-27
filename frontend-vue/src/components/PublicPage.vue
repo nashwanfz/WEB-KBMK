@@ -32,7 +32,6 @@
     <Footer />
   </div>
 </template>
-
 <style scoped>
 #app-wrapper {
   display: flex;
@@ -42,6 +41,8 @@
 
 .main-content {
   flex: 1; 
+  /* INI ADALAH BARIS YANG SANGAT PENTING */
+  overflow-y: auto; 
 }
 
 section {

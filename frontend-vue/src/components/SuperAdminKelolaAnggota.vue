@@ -12,8 +12,12 @@
       <i class="fas fa-search"></i>
     </div>
 
-    <!-- KEMBALI MENGGUNAKAN STRUKTUR TABEL -->
-    <div class="table-wrapper">
+    <!-- Tampilkan indikator loading -->
+    <div v-if="isLoading" class="loading-indicator">
+      <i class="fas fa-spinner fa-spin"></i> Memuat data...
+    </div>
+
+    <div v-else class="table-wrapper">
       <table class="data-table">
         <thead>
           <tr>
@@ -28,23 +32,19 @@
         <tbody>
           <tr v-for="anggota in filteredAnggota" :key="anggota.id">
             <td>
-              <!-- PERUBAHAN: Ganti class="member-photo" menjadi class="kegiatan-photo" -->
-              <img :src="anggota.foto || getDefaultPhoto()" alt="Foto" class="kegiatan-photo" />
+              <img :src="anggota.foto_url || getDefaultPhoto()" alt="Foto" class="kegiatan-photo" />
             </td>
             <td>{{ anggota.nama }}</td>
             <td>{{ anggota.jabatan }}</td>
             <td>{{ anggota.divisi }}</td>
-            <td>{{ formatDate(anggota.tanggalDibuat) }}</td>
+            <td>{{ formatDate(anggota.created_at) }}</td>
             <td class="action-buttons">
-              <!-- Tombol Lihat (Biru) -->
               <button class="btn-icon btn-view" @click="openModal('view', anggota)" title="Lihat Detail">
                 <i class="fas fa-eye"></i>
               </button>
-              <!-- Tombol Edit (Oranye) -->
               <button class="btn-icon btn-edit" @click="openModal('edit', anggota)" title="Edit">
                 <i class="fas fa-edit"></i>
               </button>
-              <!-- Tombol Hapus (Merah) -->
               <button class="btn-icon btn-delete" @click="handleDelete(anggota)" title="Hapus">
                 <i class="fas fa-trash"></i>
               </button>
@@ -77,14 +77,18 @@
               <label for="divisi">Divisi</label>
               <input type="text" id="divisi" v-model="formData.divisi" :disabled="modalMode === 'view'" required />
             </div>
+            <div class="form-group">
+              <label for="deskripsi">Deskripsi</label>
+              <textarea id="deskripsi" v-model="formData.deskripsi" :disabled="modalMode === 'view'" required rows="3"></textarea>
+            </div>
             <div class="form-group" v-if="modalMode !== 'view'">
               <label for="foto">Foto</label>
               <input type="file" id="foto" @change="handlePhotoUpload" accept="image/*" />
-              <p class="photo-hint">*Upload foto untuk mengganti. Kosongkan jika tidak ingin mengubah.</p>
+              <p class="photo-hint">*Pilih file gambar untuk foto anggota.</p>
             </div>
-            <div class="form-group" v-if="modalMode === 'view' && formData.foto">
+            <div class="form-group" v-if="modalMode === 'view' && formData.foto_url">
               <label>Foto Saat Ini</label>
-              <img :src="formData.foto" alt="Foto Anggota" class="current-photo" />
+              <img :src="formData.foto_url" alt="Foto Anggota" class="current-photo" />
             </div>
           </form>
         </div>
@@ -101,146 +105,140 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-
-// --- MOCK DATA ---
-const anggotaList = ref([
-  {
-    id: 1,
-    nama: 'Ahmad Fadli',
-    jabatan: 'Ketua Umum',
-    divisi: 'Kepengurusan',
-    foto: 'https://i.pravatar.cc/150?img=11',
-    tanggalDibuat: new Date('2023-01-10')
-  },
-  {
-    id: 2,
-    nama: 'Siti Nurhaliza',
-    jabatan: 'Sekretaris',
-    divisi: 'Kepengurusan',
-    foto: 'https://i.pravatar.cc/150?img=32',
-    tanggalDibuat: new Date('2023-02-15')
-  },
-  {
-    id: 3,
-    nama: 'Budi Santoso',
-    jabatan: 'Kepala Divisi Humas',
-    divisi: 'Humas',
-    foto: 'https://i.pravatar.cc/150?img=45',
-    tanggalDibuat: new Date('2023-03-20')
-  },
-  {
-    id: 4,
-    nama: 'Dewi Lestari',
-    jabatan: 'Staff Divisi Akademik',
-    divisi: 'Akademik',
-    foto: null,
-    tanggalDibuat: new Date('2023-04-05')
-  }
-])
+import { ref, computed, onMounted } from 'vue'
+import { pengurusService } from '../api/pengurusService';
 
 // --- STATE ---
-const searchQuery = ref('')
-const showModal = ref(false)
-const modalMode = ref('create') // 'create', 'view', 'edit'
+const pengurusList = ref([]);
+const searchQuery = ref('');
+const isLoading = ref(false);
+const showModal = ref(false);
+const modalMode = ref('create'); // 'create', 'view', 'edit'
 const formData = ref({
   id: null,
   nama: '',
   jabatan: '',
   divisi: '',
-  foto: null
-})
+  deskripsi: '',
+  foto: null, // Simpan objek File, bukan string base64
+  foto_url: null // Simpan URL foto dari backend
+});
 
 // --- COMPUTED ---
 const filteredAnggota = computed(() => {
   if (!searchQuery.value) {
-    return anggotaList.value
+    return pengurusList.value;
   }
-  const query = searchQuery.value.toLowerCase()
-  return anggotaList.value.filter(anggota =>
+  const query = searchQuery.value.toLowerCase();
+  return pengurusList.value.filter(anggota =>
     anggota.nama.toLowerCase().includes(query) ||
     anggota.jabatan.toLowerCase().includes(query)
-  )
-})
+  );
+});
 
 const modalTitle = computed(() => {
   switch (modalMode.value) {
-    case 'create': return 'Tambah Anggota Baru'
-    case 'view': return 'Detail Anggota'
-    case 'edit': return 'Edit Anggota'
-    default: return 'Form Anggota'
+    case 'create': return 'Tambah Anggota Baru';
+    case 'view': return 'Detail Anggota';
+    case 'edit': return 'Edit Anggota';
+    default: return 'Form Anggota';
   }
-})
+});
 
 // --- METHODS ---
 const getDefaultPhoto = () => {
-  return 'https://i.pravatar.cc/150?d=mp'
-}
+  return 'https://i.pravatar.cc/150?d=mp';
+};
 
-const formatDate = (date) => {
-  return new Date(date).toLocaleDateString('id-ID', {
+const formatDate = (dateString) => {
+  if (!dateString) return '';
+  return new Date(dateString).toLocaleDateString('id-ID', {
     year: 'numeric',
     month: 'long',
     day: 'numeric'
-  })
-}
+  });
+};
 
 const openModal = (mode, anggota = null) => {
-  modalMode.value = mode
+  modalMode.value = mode;
   if (mode === 'create') {
-    formData.value = { id: null, nama: '', jabatan: '', divisi: '', foto: null }
+    formData.value = { id: null, nama: '', jabatan: '', divisi: '', deskripsi: '', foto: null, foto_url: null };
   } else {
-    formData.value = { ...anggota }
+    // Salin data, termasuk URL foto
+    formData.value = { ...anggota, foto: null }; // foto tidak perlu disalin
   }
-  showModal.value = true
-}
+  showModal.value = true;
+};
 
 const closeModal = () => {
-  showModal.value = false
-}
+  showModal.value = false;
+};
 
-const handleSave = () => {
-  if (modalMode.value === 'create') {
-    const newId = Math.max(...anggotaList.value.map(a => a.id)) + 1
-    anggotaList.value.push({
-      ...formData.value,
-      id: newId,
-      tanggalDibuat: new Date()
-    })
-    alert('Anggota berhasil ditambahkan!')
-  } else if (modalMode.value === 'edit') {
-    const index = anggotaList.value.findIndex(a => a.id === formData.value.id)
-    if (index !== -1) {
-      anggotaList.value[index] = {
-        ...formData.value,
-        tanggalDibuat: new Date()
-      }
-      alert('Data anggota berhasil diperbarui!')
-    }
+const fetchPengurus = async () => {
+  isLoading.value = true;
+  try {
+    const response = await pengurusService.getPengurus();
+    pengurusList.value = response.data.data; // Asumsi struktur response dari API Anda
+  } catch (error) {
+    console.error('Gagal mengambil data pengurus:', error);
+    alert('Gagal memuat data pengurus. Silakan coba lagi.');
+  } finally {
+    isLoading.value = false;
   }
-  closeModal()
-}
+};
 
-const handleDelete = (anggota) => {
+const handleSave = async () => {
+  try {
+    let response;
+    if (modalMode.value === 'create') {
+      response = await pengurusService.createPengurus(formData.value);
+      alert('Anggota berhasil ditambahkan!');
+    } else if (modalMode.value === 'edit') {
+      response = await pengurusService.updatePengurus(formData.value.id, formData.value);
+      alert('Data anggota berhasil diperbarui!');
+    }
+    
+    // Refresh data dari server setelah berhasil
+    await fetchPengurus();
+    closeModal();
+  } catch (error) {
+    console.error('Gagal menyimpan data:', error);
+    alert('Gagal menyimpan data anggota. Silakan coba lagi.');
+  }
+};
+
+const handleDelete = async (anggota) => {
   if (confirm(`Apakah Anda yakin ingin menghapus "${anggota.nama}"?`)) {
-    const index = anggotaList.value.findIndex(a => a.id === anggota.id)
-    if (index !== -1) {
-      anggotaList.value.splice(index, 1)
-      alert('Anggota berhasil dihapus.')
+    try {
+      await pengurusService.deletePengurus(anggota.id);
+      alert('Anggota berhasil dihapus.');
+      await fetchPengurus(); // Refresh data
+    } catch (error) {
+      console.error('Gagal menghapus data:', error);
+      alert('Gagal menghapus data anggota. Silakan coba lagi.');
     }
   }
-}
+};
 
 const handlePhotoUpload = (event) => {
-  const file = event.target.files[0]
+  const file = event.target.files[0];
   if (file) {
-    const reader = new FileReader()
+    // Simpan objek file ke formData.value untuk dikirim ke backend
+    formData.value.foto = file;
+    
+    // Buat URL preview sementara (opsional, untuk ditampilkan di modal)
+    const reader = new FileReader();
     reader.onload = (e) => {
-      formData.value.foto = e.target.result
-    }
-    reader.readAsDataURL(file)
+      formData.value.foto_url = e.target.result;
+    };
+    reader.readAsDataURL(file);
   }
-}
+};
+
+// Ambil data saat komponen pertama kali dimuat
+onMounted(() => {
+  fetchPengurus();
+});
 </script>
 
 <style scoped>
@@ -262,6 +260,14 @@ const handlePhotoUpload = (event) => {
   color: #2c3e50;
   margin: 0;
   font-size: 2rem;
+}
+
+/* --- Loading Indicator --- */
+.loading-indicator {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+  color: #007bce;
 }
 
 /* --- Search Bar --- */
@@ -315,7 +321,7 @@ const handlePhotoUpload = (event) => {
   vertical-align: middle;
 }
 
-/* --- PERUBAHAN: Ganti style foto lingkaran dengan foto kotak --- */
+/* Style khusus untuk foto kegiatan (persegi panjang) */
 .kegiatan-photo {
   width: 100px;
   height: 70px;
@@ -372,31 +378,31 @@ const handlePhotoUpload = (event) => {
   font-size: 1rem;
 }
 
-.btn-view { 
-  background-color: #2196F3; 
-  color: white; 
+.btn-view {
+  background-color: #2196F3;
+  color: white;
 }
-.btn-view:hover { 
-  background-color: #0d8aee; 
-  transform: scale(1.1); 
-}
-
-.btn-edit { 
-  background-color: #FF9800; 
-  color: white; 
-}
-.btn-edit:hover { 
-  background-color: #e68900; 
-  transform: scale(1.1); 
+.btn-view:hover {
+  background-color: #0d8aee;
+  transform: scale(1.1);
 }
 
-.btn-delete { 
-  background-color: #F44336; 
-  color: white; 
+.btn-edit {
+  background-color: #FF9800;
+  color: white;
 }
-.btn-delete:hover { 
-  background-color: #d32f2f; 
-  transform: scale(1.1); 
+.btn-edit:hover {
+  background-color: #e68900;
+  transform: scale(1.1);
+}
+
+.btn-delete {
+  background-color: #F44336;
+  color: white;
+}
+.btn-delete:hover {
+  background-color: #d32f2f;
+  transform: scale(1.1);
 }
 
 /* --- Modal --- */
@@ -424,8 +430,14 @@ const handlePhotoUpload = (event) => {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .modal-header {
@@ -435,10 +447,12 @@ const handlePhotoUpload = (event) => {
   padding: 1.5rem;
   border-bottom: 1px solid #eee;
 }
+
 .modal-header h3 {
   margin: 0;
   color: #2c3e50;
 }
+
 .close-btn {
   background: none;
   border: none;
@@ -450,33 +464,42 @@ const handlePhotoUpload = (event) => {
 .modal-body {
   padding: 1.5rem;
 }
+
 .form-group {
   margin-bottom: 1.5rem;
 }
+
 .form-group label {
   display: block;
   margin-bottom: 0.5rem;
   font-weight: 600;
   color: #495057;
 }
+
 .form-group input[type="text"],
-.form-group input[type="file"] {
+.form-group textarea {
   width: 100%;
   padding: 0.75rem;
   border: 1px solid #ced4da;
   border-radius: 8px;
   font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
 }
-.form-group input:disabled {
+
+.form-group input:disabled,
+.form-group textarea:disabled {
   background-color: #f8f9fa;
   cursor: not-allowed;
 }
+
 .photo-hint {
   font-size: 0.8rem;
   color: #6c757d;
   margin-top: 0.25rem;
   margin-bottom: 0;
 }
+
 .current-photo {
   width: 100%;
   max-width: 200px;
