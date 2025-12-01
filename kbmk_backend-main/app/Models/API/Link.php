@@ -4,12 +4,12 @@ namespace App\Models\API;
 
 use Illuminate\Database\Eloquent\Model;
 
-class Schedule extends Model
+class Link extends Model
 {
+    protected $table = 'links';
+
     protected $fillable = [
         'nama',
-        'tanggal',
-        'lokasi',
-        'deskripsi',
+        'link'
     ];
 }

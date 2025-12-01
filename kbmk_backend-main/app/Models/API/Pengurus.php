@@ -14,6 +14,7 @@ class Pengurus extends Model
 
     protected $fillable = [
         'nama',
+        'jabatan',
         'divisi',
         'foto',
         'deskripsi',
@@ -22,5 +23,10 @@ class Pengurus extends Model
     public function getFotoUrlAttribute()
     {
         return $this->foto ? Storage::url($this->foto) : null;
+    }
+
+    public function division()
+    {
+        return $this->belongsTo(Division::class);
     }
 }
