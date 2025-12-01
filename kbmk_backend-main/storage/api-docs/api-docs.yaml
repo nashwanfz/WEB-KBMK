@@ -344,13 +344,167 @@ paths:
       security:
         -
           bearerAuth: []
+  /links:
+    get:
+      tags:
+        - Link
+      summary: 'Menampilkan daftar link'
+      description: 'Endpoint publik untuk melihat semua link.'
+      operationId: a4cdfccec2072bff462ecc4a12651ca1
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Link'
+                type: object
+    post:
+      tags:
+        - Link
+      summary: 'Menambah link baru'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: 473714d8872dd56ff0565acb7d029ec6
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - nama
+                - link
+              properties:
+                nama:
+                  type: string
+                  maxLength: 255
+                  example: 'Link GForm'
+                link:
+                  type: string
+                  format: uri
+                  example: 'https://forms.gle/xyz'
+              type: object
+      responses:
+        201:
+          description: 'Link berhasil dibuat'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Link'
+                type: object
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  '/links/{id}':
+    get:
+      tags:
+        - Link
+      summary: 'Menampilkan detail link'
+      description: 'Endpoint publik untuk melihat detail satu link.'
+      operationId: 1140569bb06802b6bda1e8aa3f5f8c89
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Link'
+                type: object
+        404:
+          description: 'Not found'
+    put:
+      tags:
+        - Link
+      summary: 'Memperbarui link'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: e26b4a1a2fb44a2e0e00ec2aaa28c956
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              properties:
+                nama:
+                  type: string
+                  maxLength: 255
+                  example: 'Link GForm Baru'
+                link:
+                  type: string
+                  format: uri
+                  example: 'https://forms.gle/abc'
+              type: object
+      responses:
+        200:
+          description: 'Link berhasil diperbarui'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Link'
+                type: object
+        404:
+          description: 'Not found'
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+    delete:
+      tags:
+        - Link
+      summary: 'Menghapus link'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: 8d796148b9d641c83be0a2dce357936d
+      parameters:
+        -
+          name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: 'Link berhasil dihapus'
+        404:
+          description: 'Not found'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
   /pengurus:
     get:
       tags:
         - Pengurus
-      summary: 'Menampilkan daftar pengurus (dengan paginasi)'
-      description: 'Endpoint publik untuk melihat data pengurus'
-      operationId: 6819b06a19ae2b1a6a6b03047df521bb
+      summary: 'Menampilkan daftar pengurus'
+      description: 'Endpoint publik untuk melihat data pengurus beserta divisinya'
+      operationId: dd0c963df2fbd708d870a14e100b0771
       responses:
         200:
           description: Berhasil
@@ -362,38 +516,31 @@ paths:
                     type: array
                     items:
                       $ref: '#/components/schemas/Pengurus'
-                  links:
-                    type: object
-                  meta:
-                    properties:
-                      current_page:
-                        type: integer
-                      last_page:
-                        type: integer
-                    type: object
                 type: object
     post:
       tags:
         - Pengurus
       summary: 'Menambah data pengurus baru'
       description: "Memerlukan autentikasi dan role 'superadmin'. Mengupload foto."
-      operationId: 968a70d4e1ea103510b99a7786f65fd0
+      operationId: 62cfbffccfec4a9851a0080338b7c193
       requestBody:
         content:
           multipart/form-data:
             schema:
               required:
                 - nama
-                - divisi
-                - foto
+                - division_id
                 - deskripsi
               properties:
                 nama:
                   type: string
                   maxLength: 50
-                divisi:
+                jabatan:
                   type: string
-                  maxLength: 50
+                  maxLength: 100
+                division_id:
+                  description: 'ID dari tabel divisions'
+                  type: integer
                 foto:
                   type: string
                   format: binary
@@ -422,8 +569,8 @@ paths:
       tags:
         - Pengurus
       summary: 'Menampilkan detail pengurus'
-      description: 'Endpoint publik untuk melihat detail satu pengurus'
-      operationId: 27a11dd2fee68d03ece0b0a0d431f565
+      description: 'Endpoint publik untuk melihat detail satu pengurus beserta divisinya'
+      operationId: 65f820a0ce1cd9573e9aa594a3a916c8
       parameters:
         -
           name: id
@@ -448,7 +595,7 @@ paths:
         - Pengurus
       summary: 'Memperbarui data pengurus'
       description: "Memerlukan autentikasi dan role 'superadmin'. Dapat mengganti foto."
-      operationId: 6b741e0346150b1b59fd643091749604
+      operationId: 6c8813685f7879296fa6933750cb43fa
       parameters:
         -
           name: id
@@ -464,9 +611,12 @@ paths:
                 nama:
                   type: string
                   maxLength: 50
-                divisi:
+                jabatan:
                   type: string
-                  maxLength: 50
+                  maxLength: 100
+                division_id:
+                  description: 'ID dari tabel divisions'
+                  type: integer
                 foto:
                   type: string
                   format: binary
@@ -497,7 +647,7 @@ paths:
         - Pengurus
       summary: 'Menghapus data pengurus'
       description: "Memerlukan autentikasi dan role 'superadmin'"
-      operationId: 369b620e24eddd2aa6077b574a5555f9
+      operationId: 5657f94e2df8b95b2e79cda7421b5847
       parameters:
         -
           name: id
@@ -843,6 +993,371 @@ paths:
       security:
         -
           bearerAuth: []
+  /surat-outgoing:
+    get:
+      tags:
+        - 'Surat Keluar'
+      summary: 'Admin/Superadmin melihat semua surat keluar'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: 1979037dede8bc165465cfc17e2e6cf7
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SuratOutgoing'
+                type: object
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+    post:
+      tags:
+        - 'Surat Keluar'
+      summary: 'Admin/Superadmin membuat surat keluar baru'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: 0a44d5bb351db98272bb1e3be6c4f3ec
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              required:
+                - perihal
+                - tujuan
+                - jenis_surat
+                - file_surat
+              properties:
+                perihal:
+                  type: string
+                  maxLength: 255
+                tujuan:
+                  type: string
+                jenis_surat:
+                  type: string
+                  maxLength: 255
+                file_surat:
+                  type: string
+                  format: binary
+              type: object
+      responses:
+        201:
+          description: 'Surat keluar berhasil dibuat'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SuratOutgoing'
+                type: object
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  '/surat-outgoing/{suratOutgoing}':
+    get:
+      tags:
+        - 'Surat Keluar'
+      summary: 'Menampilkan detail surat keluar'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: cd955c1b840171e04adbed5b7e7dd180
+      parameters:
+        -
+          name: suratOutgoing
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SuratOutgoing'
+                type: object
+        404:
+          description: 'Not found'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+    put:
+      tags:
+        - 'Surat Keluar'
+      summary: 'Memperbarui surat keluar'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: 9fec1fea252ce64a9f3adb0c2b194c6c
+      parameters:
+        -
+          name: suratOutgoing
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              properties:
+                perihal:
+                  type: string
+                  maxLength: 255
+                tujuan:
+                  type: string
+                jenis_surat:
+                  type: string
+                  maxLength: 255
+                file_surat:
+                  type: string
+                  format: binary
+              type: object
+      responses:
+        200:
+          description: 'Surat keluar berhasil diperbarui'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SuratOutgoing'
+                type: object
+        404:
+          description: 'Not found'
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+    delete:
+      tags:
+        - 'Surat Keluar'
+      summary: 'Menghapus surat keluar'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: 4f638cb3875098a7472b47d07d2f933f
+      parameters:
+        -
+          name: suratOutgoing
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        200:
+          description: 'Surat keluar berhasil dihapus'
+        404:
+          description: 'Not found'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  /surat-requests:
+    get:
+      tags:
+        - 'Surat Masuk'
+      summary: 'Admin/Superadmin melihat semua pengajuan surat'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: 1b314bac8530369d69d1336fd353858c
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SuratRequest'
+                type: object
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+    post:
+      tags:
+        - 'Surat Masuk'
+      summary: 'Guest mengajukan surat baru'
+      description: 'Endpoint publik untuk mengajukan surat permohonan atau lainnya.'
+      operationId: 7fcfb87072f11962ecb80c78f7b49e42
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              required:
+                - nama_pengirim
+                - perihal
+                - tujuan
+                - jenis_surat
+                - file_surat
+              properties:
+                nama_pengirim:
+                  type: string
+                  maxLength: 255
+                email_pengirim:
+                  type: string
+                  format: email
+                  maxLength: 255
+                perihal:
+                  type: string
+                  maxLength: 255
+                tujuan:
+                  type: string
+                asal_instansi:
+                  type: string
+                  maxLength: 255
+                jenis_surat:
+                  type: string
+                  maxLength: 255
+                file_surat:
+                  type: string
+                  format: binary
+              type: object
+      responses:
+        201:
+          description: 'Surat berhasil diajukan'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SuratRequest'
+                type: object
+        422:
+          description: 'Error validasi'
+  '/surat-requests/{suratRequest}/assign':
+    patch:
+      tags:
+        - 'Surat Masuk'
+      summary: 'Admin/Superadmin menugaskan surat ke koordinator'
+      description: "Memerlukan autentikasi dan role 'admin' atau 'superadmin'."
+      operationId: bc015ad877fad2ead364a428a0d87a80
+      parameters:
+        -
+          name: suratRequest
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - assigned_to
+              properties:
+                assigned_to:
+                  description: 'ID User (Koordinator Divisi)'
+                  type: integer
+                catatan:
+                  type: string
+              type: object
+      responses:
+        200:
+          description: 'Surat berhasil ditugaskan'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SuratRequest'
+                type: object
+        404:
+          description: 'Surat tidak ditemukan'
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  /my-dispositions:
+    get:
+      tags:
+        - 'Surat Masuk'
+      summary: 'Koordinator melihat surat yang ditugaskan kepadanya'
+      description: "Memerlukan autentikasi dan role 'koor_divisi'."
+      operationId: 11a78a783a183dfcd6a161b68ab710c7
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/SuratDisposition'
+                type: object
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
+  '/surat-dispositions/{suratDisposition}/status':
+    patch:
+      tags:
+        - 'Surat Masuk'
+      summary: 'Koordinator memperbarui status surat'
+      description: "Memerlukan autentikasi dan role 'koor_divisi'."
+      operationId: 586bb06ea11b2c6f1bbe90a1caa55e00
+      parameters:
+        -
+          name: suratDisposition
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum:
+                    - diproses
+                    - selesai
+              type: object
+      responses:
+        200:
+          description: 'Status berhasil diperbarui'
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    $ref: '#/components/schemas/SuratDisposition'
+                type: object
+        403:
+          description: 'Unauthorized - Bukan tugas Anda'
+        404:
+          description: 'Disposisi tidak ditemukan'
+        422:
+          description: 'Error validasi'
+        401:
+          description: Unauthorized
+      security:
+        -
+          bearerAuth: []
 components:
   schemas:
     User:
@@ -914,10 +1429,32 @@ components:
           type: string
           format: date-time
       type: object
+    Link:
+      required:
+        - nama
+        - link
+      properties:
+        id:
+          type: integer
+          example: 1
+        nama:
+          type: string
+          example: 'Google Drive KBMK'
+        link:
+          type: string
+          format: uri
+          example: 'https://drive.google.com/drive/folders/xyz'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      type: object
     Pengurus:
       required:
         - nama
-        - divisi
+        - division_id
         - deskripsi
       properties:
         id:
@@ -927,10 +1464,25 @@ components:
           type: string
           maxLength: 50
           example: 'Nanda Arianto'
-        divisi:
+        jabatan:
           type: string
-          maxLength: 50
-          example: Humas
+          maxLength: 100
+          example: 'Ketua Umum'
+        division_id:
+          type: integer
+          example: 2
+        division:
+          properties:
+            id:
+              type: integer
+              example: 2
+            nama:
+              type: string
+              example: Perlengkapan
+            deskripsi:
+              type: string
+              example: 'Mengelola logistik.'
+          type: object
         foto:
           type: string
           example: pengurus/nama_file.jpg
@@ -939,7 +1491,7 @@ components:
           example: 'http://localhost:8000/storage/pengurus/nama_file.jpg'
         deskripsi:
           type: string
-          example: 'Bertanggung jawab atas hubungan masyarakat.'
+          example: 'Bertanggung jawab atas kelancaran program kerja.'
         created_at:
           type: string
           format: date-time
@@ -1004,6 +1556,144 @@ components:
           type: string
           format: date-time
       type: object
+    SuratOutgoing:
+      required:
+        - perihal
+        - tujuan
+        - jenis_surat
+        - file_surat
+      properties:
+        id:
+          type: integer
+          example: 1
+        nomor_surat:
+          type: string
+          example: SK-20231120-WXYZ
+        perihal:
+          type: string
+          example: 'Undangan Acara Maulid Nabi'
+        tujuan:
+          type: string
+          example: 'Seluruh Civitas Akademika Fakultas Teknik'
+        jenis_surat:
+          type: string
+          example: Undangan
+        file_surat:
+          type: string
+          example: surat_outgoing/undangan.pdf
+        dibuat_oleh:
+          type: integer
+          example: 2
+        creator:
+          $ref: '#/components/schemas/UserSimple'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      type: object
+    SuratRequest:
+      required:
+        - nama_pengirim
+        - perihal
+        - tujuan
+        - jenis_surat
+        - file_surat
+      properties:
+        id:
+          type: integer
+          example: 1
+        nomor_surat:
+          type: string
+          example: SR-20231120-ABCD
+        nama_pengirim:
+          type: string
+          example: 'John Doe'
+        email_pengirim:
+          type: string
+          format: email
+          example: john@example.com
+        perihal:
+          type: string
+          example: 'Permohonan Kerjasama'
+        tujuan:
+          type: string
+          example: 'Divisi Humas KBMK'
+        asal_instansi:
+          type: string
+          example: 'PT. Sejahtera'
+        jenis_surat:
+          type: string
+          example: Kerjasama
+        file_surat:
+          type: string
+          example: surat_requests/proposal.pdf
+        status:
+          type: string
+          enum:
+            - pending
+            - diteruskan
+            - diproses
+            - selesai
+          example: pending
+        dispositions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SuratDisposition'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      type: object
+    SuratDisposition:
+      properties:
+        id:
+          type: integer
+          example: 1
+        surat_request_id:
+          type: integer
+          example: 1
+        assigned_to:
+          type: integer
+          example: 5
+        catatan:
+          type: string
+          example: 'Mohon segera diproses.'
+        status:
+          type: string
+          enum:
+            - 'belum dibaca'
+            - diproses
+            - selesai
+          example: 'belum dibaca'
+        assignedUser:
+          $ref: '#/components/schemas/UserSimple'
+        suratRequest:
+          $ref: '#/components/schemas/SuratRequest'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+      type: object
+    UserSimple:
+      description: 'Schema untuk data user yang disederhanakan, digunakan saat menampilkan user terkait.'
+      properties:
+        id:
+          type: integer
+          example: 5
+        username:
+          type: string
+          example: koordivhumas
+        email:
+          type: string
+          format: email
+          example: koordivhumas@gmail.com
+      type: object
   securitySchemes:
     bearerAuth:
       type: http
@@ -1019,6 +1709,9 @@ tags:
     name: Documentations
     description: Documentations
   -
+    name: Link
+    description: Link
+  -
     name: Pengurus
     description: Pengurus
   -
@@ -1027,3 +1720,9 @@ tags:
   -
     name: Schedules
     description: Schedules
+  -
+    name: 'Surat Keluar'
+    description: 'Surat Keluar'
+  -
+    name: 'Surat Masuk'
+    description: 'Surat Masuk'

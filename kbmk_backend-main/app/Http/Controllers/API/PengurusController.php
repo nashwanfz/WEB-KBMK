@@ -1,23 +1,30 @@
 <?php
 
-// app/Http/Controllers/Api/PengurusController.php
-namespace App\Http\Controllers\API;
+// Perbaikan namespace menjadi standar Laravel (Api bukan API)
+namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\API\Pengurus;
+use App\Models\Division;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
 /**
  * @OA\Schema(
  *     schema="Pengurus",
- *     required={"nama", "divisi", "deskripsi"},
+ *     required={"nama", "division_id", "deskripsi"},
  *     @OA\Property(property="id", type="integer", example=1),
  *     @OA\Property(property="nama", type="string", maxLength=50, example="Nanda Arianto"),
- *     @OA\Property(property="divisi", type="string", maxLength=50, example="Humas"),
+ *     @OA\Property(property="jabatan", type="string", maxLength=100, example="Ketua Umum"),
+ *     @OA\Property(property="division_id", type="integer", example=2),
+ *     @OA\Property(property="division", type="object",
+ *         @OA\Property(property="id", type="integer", example=2),
+ *         @OA\Property(property="nama", type="string", example="Perlengkapan"),
+ *         @OA\Property(property="deskripsi", type="string", example="Mengelola logistik.")
+ *     ),
  *     @OA\Property(property="foto", type="string", example="pengurus/nama_file.jpg"),
  *     @OA\Property(property="foto_url", type="string", example="http://localhost:8000/storage/pengurus/nama_file.jpg"),
- *     @OA\Property(property="deskripsi", type="string", example="Bertanggung jawab atas hubungan masyarakat."),
+ *     @OA\Property(property="deskripsi", type="string", example="Bertanggung jawab atas kelancaran program kerja."),
  *     @OA\Property(property="created_at", type="string", format="date-time"),
  *     @OA\Property(property="updated_at", type="string", format="date-time")
  * )
@@ -28,50 +35,37 @@ class PengurusController extends Controller
      * @OA\Get(
      *     path="/pengurus",
      *     tags={"Pengurus"},
-     *     summary="Menampilkan daftar pengurus (dengan paginasi)",
-     *     description="Endpoint publik untuk melihat data pengurus",
+     *     summary="Menampilkan daftar pengurus",
+     *     description="Endpoint publik untuk melihat data pengurus beserta divisinya",
      *     @OA\Response(
      *         response=200,
      *         description="Berhasil",
      *         @OA\JsonContent(
-     *             @OA\Property(property="data", type="array", @OA\Items(ref="#/components/schemas/Pengurus")),
-     *             @OA\Property(property="links", type="object"),
-     *             @OA\Property(property="meta", type="object",
-     *                 @OA\Property(property="current_page", type="integer"),
-     *                 @OA\Property(property="last_page", type="integer")
-     *             )
+     *             @OA\Property(property="data", type="array", @OA\Items(ref="#/components/schemas/Pengurus"))
      *         )
      *     )
      * )
      */
-        public function index()
+    public function index()
     {
-        // Ambil semua data pengurus tanpa paginate
-        $pengurus = Pengurus::latest()->get();
+        $pengurus = Pengurus::with('division')->latest()->get();
 
-        // Tambahkan foto_url ke setiap item
         $data = $pengurus->map(function ($item) {
             $item->foto_url = $item->foto_url;
             return $item;
         });
 
         return response()->json([
-            'data' => $data,
-            'links' => new \stdClass(), // kosongkan links karena tidak ada paginate
-            'meta' => [
-                'current_page' => 1,
-                'last_page' => 1,
-            ]
+            'data' => $data
         ]);
     }
-
 
     /**
      * @OA\Get(
      *     path="/pengurus/{id}",
      *     tags={"Pengurus"},
      *     summary="Menampilkan detail pengurus",
-     *     description="Endpoint publik untuk melihat detail satu pengurus",
+     *     description="Endpoint publik untuk melihat detail satu pengurus beserta divisinya",
      *     @OA\Parameter(name="id", in="path", required=true, @OA\Schema(type="integer")),
      *     @OA\Response(response=200, description="Berhasil", @OA\JsonContent(@OA\Property(property="data", ref="#/components/schemas/Pengurus"))),
      *     @OA\Response(response=404, description="Not found")
@@ -79,7 +73,7 @@ class PengurusController extends Controller
      */
     public function show(string $id)
     {
-        $pengurus = Pengurus::find($id);
+        $pengurus = Pengurus::with('division')->find($id);
         if (!$pengurus) return response()->json(['message' => 'Not found'], 404);
 
         $pengurus->foto_url = $pengurus->foto_url;
@@ -96,9 +90,10 @@ class PengurusController extends Controller
      *     security={{"bearerAuth": {}}},
      *     @OA\RequestBody(
      *         @OA\MediaType(mediaType="multipart/form-data",
-     *             @OA\Schema(required={"nama", "divisi", "foto", "deskripsi"},
+     *             @OA\Schema(required={"nama", "division_id", "deskripsi"},
      *                 @OA\Property(property="nama", type="string", maxLength=50),
-     *                 @OA\Property(property="divisi", type="string", maxLength=50),
+     *                 @OA\Property(property="jabatan", type="string", maxLength=100),
+     *                 @OA\Property(property="division_id", type="integer", description="ID dari tabel divisions"),
      *                 @OA\Property(property="foto", type="string", format="binary"),
      *                 @OA\Property(property="deskripsi", type="string")
      *             )
@@ -113,13 +108,22 @@ class PengurusController extends Controller
     {
         $request->validate([
             'nama' => 'required|string|max:50',
-            'divisi' => 'required|string|max:50',
+            'division_id' => 'required|integer|exists:divisions,id',
+            'jabatan' => 'nullable|string|max:100',
             'foto' => 'required|image|mimes:jpeg,png,jpg,gif|max:2048',
             'deskripsi' => 'required|string',
         ]);
 
         $fotoPath = $request->file('foto')->store('pengurus', 'public');
-        $pengurus = Pengurus::create($request->except('foto') + ['foto' => $fotoPath]);
+        $pengurus = Pengurus::create([
+            'nama' => $request->nama,
+            'division_id' => $request->division_id,
+            'jabatan' => $request->jabatan,
+            'foto' => $fotoPath,
+            'deskripsi' => $request->deskripsi,
+        ]);
+
+        $pengurus->load('division');
 
         return response()->json(['message' => 'Pengurus created successfully', 'data' => $pengurus], 201);
     }
@@ -136,7 +140,8 @@ class PengurusController extends Controller
      *         @OA\MediaType(mediaType="multipart/form-data",
      *             @OA\Schema(
      *                 @OA\Property(property="nama", type="string", maxLength=50),
-     *                 @OA\Property(property="divisi", type="string", maxLength=50),
+     *                 @OA\Property(property="jabatan", type="string", maxLength=100),
+     *                 @OA\Property(property="division_id", type="integer", description="ID dari tabel divisions"),
      *                 @OA\Property(property="foto", type="string", format="binary"),
      *                 @OA\Property(property="deskripsi", type="string")
      *             )
@@ -155,17 +160,19 @@ class PengurusController extends Controller
 
         $request->validate([
             'nama' => 'sometimes|required|string|max:50',
-            'divisi' => 'sometimes|required|string|max:50',
+            'division_id' => 'sometimes|required|integer|exists:divisions,id',
+            'jabatan' => 'sometimes|nullable|string|max:100',
             'foto' => 'sometimes|image|mimes:jpeg,png,jpg,gif|max:2048',
             'deskripsi' => 'sometimes|required|string',
         ]);
 
-        $data = $request->except('foto');
+        $data = $request->only(['nama', 'division_id', 'jabatan', 'deskripsi']);
         if ($request->hasFile('foto')) {
             Storage::disk('public')->delete($pengurus->foto);
             $data['foto'] = $request->file('foto')->store('pengurus', 'public');
         }
         $pengurus->update($data);
+        $pengurus->load('division');
 
         return response()->json(['message' => 'Pengurus updated successfully', 'data' => $pengurus]);
     }

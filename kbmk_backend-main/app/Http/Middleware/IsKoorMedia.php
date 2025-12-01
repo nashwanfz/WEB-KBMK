@@ -2,12 +2,13 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\API\Division;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Symfony\Component\HttpFoundation\Response;
 
-class IsAdmin
+class IsKoorMedia
 {
     /**
      * Handle an incoming request.
@@ -16,10 +17,12 @@ class IsAdmin
      */
     public function handle(Request $request, Closure $next): Response
     {
-        if (Auth::check() && in_array(Auth::user()->role, ['admin', 'superadmin'])) {
+        $mediaDivision = Division::where('nama', 'Media')->first();
+
+        if (Auth::check() && Auth::user()->role === 'koor_divisi' && Auth::user()->division_id === $mediaDivision?->id) {
             return $next($request);
         }
 
-        return response()->json(['message' => 'Anda tidak memiliki izin akses sebagai Admin.'], 403);
+        return response()->json(['message' => 'Anda tidak memiliki izin akses sebagai Koordinator Media.'], 403);
     }
 }
