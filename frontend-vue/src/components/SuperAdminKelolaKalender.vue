@@ -7,8 +7,13 @@
       </button>
     </div>
 
+    <!-- Tampilkan pesan error jika ada -->
+    <div v-if="errorMessage" class="alert alert-danger">
+      {{ errorMessage }}
+    </div>
+
     <div class="search-bar">
-      <input type="text" placeholder="Cari berdasarkan nama kegiatan atau lokasi..." v-model="searchQuery" />
+      <input type="text" placeholder="Cari berdasarkan nama kegiatan atau deskripsi..." v-model="searchQuery" />
       <i class="fas fa-search"></i>
     </div>
 
@@ -17,28 +22,32 @@
         <thead>
           <tr>
             <th>Nama Kegiatan</th>
-            <th>Tanggal Mulai</th>
-            <th>Tanggal Selesai</th>
-            <th>Lokasi</th>
+            <th>Tanggal</th>
+            <th>Deskripsi</th>
             <th>Aksi</th>
           </tr>
         </thead>
         <tbody>
+          <!-- Tampilkan loading jika sedang mengambil data -->
+          <tr v-if="isLoading">
+            <td colspan="4" class="text-center">Memuat data...</td>
+          </tr>
+          <!-- Tampilkan pesan jika tidak ada data -->
+          <tr v-else-if="!isLoading && filteredKegiatan.length === 0">
+            <td colspan="4" class="text-center">Tidak ada jadwal kegiatan.</td>
+          </tr>
+          <!-- Tampilkan data jadwal -->
           <tr v-for="kegiatan in filteredKegiatan" :key="kegiatan.id">
-            <td>{{ kegiatan.namaKegiatan }}</td>
-            <td>{{ formatDate(kegiatan.tanggalMulai) }}</td>
-            <td>{{ formatDate(kegiatan.tanggalSelesai) }}</td>
-            <td>{{ kegiatan.lokasi }}</td>
+            <td>{{ kegiatan.nama }}</td>
+            <td>{{ formatDate(kegiatan.tanggal) }}</td>
+            <td>{{ kegiatan.deskripsi }}</td>
             <td class="action-buttons">
-              <!-- Tombol Lihat (Biru) -->
               <button class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
                 <i class="fas fa-eye"></i>
               </button>
-              <!-- Tombol Edit (Oranye) -->
               <button class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
                 <i class="fas fa-edit"></i>
               </button>
-              <!-- Tombol Hapus (Merah) -->
               <button class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus">
                 <i class="fas fa-trash"></i>
               </button>
@@ -60,20 +69,16 @@
         <div class="modal-body">
           <form @submit.prevent="handleSave">
             <div class="form-group">
-              <label for="namaKegiatan">Nama Kegiatan</label>
-              <input type="text" id="namaKegiatan" v-model="formData.namaKegiatan" :disabled="modalMode === 'view'" required />
+              <label for="nama">Nama Kegiatan</label>
+              <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view'" required />
             </div>
             <div class="form-group">
-              <label for="tanggalMulai">Tanggal Mulai</label>
-              <input type="date" id="tanggalMulai" v-model="formData.tanggalMulai" :disabled="modalMode === 'view'" required />
+              <label for="tanggal">Tanggal</label>
+              <input type="date" id="tanggal" v-model="formData.tanggal" :disabled="modalMode === 'view'" required />
             </div>
             <div class="form-group">
-              <label for="tanggalSelesai">Tanggal Selesai</label>
-              <input type="date" id="tanggalSelesai" v-model="formData.tanggalSelesai" :disabled="modalMode === 'view'" required />
-            </div>
-            <div class="form-group">
-              <label for="lokasi">Lokasi</label>
-              <input type="text" id="lokasi" v-model="formData.lokasi" :disabled="modalMode === 'view'" required />
+              <label for="deskripsi">Deskripsi</label>
+              <textarea id="deskripsi" v-model="formData.deskripsi" :disabled="modalMode === 'view'" rows="4" required></textarea>
             </div>
           </form>
         </div>
@@ -81,7 +86,12 @@
           <button v-if="modalMode === 'view'" class="btn btn-secondary" @click="closeModal">Tutup</button>
           <template v-else>
             <button type="button" class="btn btn-secondary" @click="closeModal">Batal</button>
-            <button type="submit" class="btn btn-primary" @click="handleSave">Simpan</button>
+            <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isLoading">
+              <span v-if="isLoading">
+                <i class="fas fa-spinner fa-spin"></i> Menyimpan...
+              </span>
+              <span v-else>Simpan</span>
+            </button>
           </template>
         </div>
       </div>
@@ -90,44 +100,36 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import axios from 'axios'
 
-// --- MOCK DATA ---
-const kegiatanList = ref([
-  {
-    id: 1,
-    namaKegiatan: 'Rapat Koordinasi Awal Tahun',
-    tanggalMulai: '2024-01-15',
-    tanggalSelesai: '2024-01-15',
-    lokasi: 'Ruang Rapat KBMK'
-  },
-  {
-    id: 2,
-    namaKegiatan: 'Workshop Kepemimpinan',
-    tanggalMulai: '2024-02-20',
-    tanggalSelesai: '2024-02-22',
-    lokasi: 'Aula Gedung Pusat'
-  },
-  {
-    id: 3,
-    namaKegiatan: 'Bakti Sosial Ramadhan',
-    tanggalMulai: '2024-03-10',
-    tanggalSelesai: '2024-03-10',
-    lokasi: 'Masjid Al-Hikmah, Desa Mekar Jaya'
+// Konfigurasi API
+// Ganti dengan URL backend Anda jika perlu
+const API_URL = '/api' 
+
+// Buat instance axios dengan konfigurasi default
+const api = axios.create({
+  baseURL: API_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    // Ambil token dari localStorage dan tambahkan ke header
+    'Authorization': `Bearer ${localStorage.getItem('token')}`
   }
-])
+})
 
 // --- STATE ---
+const kegiatanList = ref([])
 const searchQuery = ref('')
 const showModal = ref(false)
 const modalMode = ref('create') // 'create', 'view', 'edit'
 const formData = ref({
   id: null,
-  namaKegiatan: '',
-  tanggalMulai: '',
-  tanggalSelesai: '',
-  lokasi: ''
+  nama: '',
+  tanggal: '',
+  deskripsi: ''
 })
+const isLoading = ref(false)
+const errorMessage = ref('')
 
 // --- COMPUTED ---
 const filteredKegiatan = computed(() => {
@@ -136,8 +138,8 @@ const filteredKegiatan = computed(() => {
   }
   const query = searchQuery.value.toLowerCase()
   return kegiatanList.value.filter(kegiatan =>
-    kegiatan.namaKegiatan.toLowerCase().includes(query) ||
-    kegiatan.lokasi.toLowerCase().includes(query)
+    kegiatan.nama.toLowerCase().includes(query) ||
+    kegiatan.deskripsi.toLowerCase().includes(query)
   )
 })
 
@@ -160,11 +162,38 @@ const formatDate = (dateString) => {
   })
 }
 
+// Fetch data dari API endpoint /schedules
+const fetchKegiatan = async () => {
+  isLoading.value = true
+  errorMessage.value = ''
+  
+  try {
+    const response = await api.get('/schedules')
+    // Sesuaikan dengan struktur respons API { "data": [...] }
+    kegiatanList.value = response.data.data
+  } catch (error) {
+    console.error('Error fetching schedules:', error)
+    errorMessage.value = 'Gagal memuat data jadwal. Silakan coba lagi.'
+    
+    // Jika error terkait autentikasi (401), redirect ke halaman login
+    if (error.response && error.response.status === 401) {
+      localStorage.removeItem('token')
+      // Asumsikan Anda memiliki router Vue
+      // router.push('/login') 
+      window.location.href = '/login' // Fallback
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
+
 const openModal = (mode, kegiatan = null) => {
   modalMode.value = mode
+  errorMessage.value = '' // Reset error saat modal dibuka
   if (mode === 'create') {
-    formData.value = { id: null, namaKegiatan: '', tanggalMulai: '', tanggalSelesai: '', lokasi: '' }
+    formData.value = { id: null, nama: '', tanggal: '', deskripsi: '' }
   } else {
+    // Salin data untuk menghindari modifikasi langsung pada data asli
     formData.value = { ...kegiatan }
   }
   showModal.value = true
@@ -172,38 +201,97 @@ const openModal = (mode, kegiatan = null) => {
 
 const closeModal = () => {
   showModal.value = false
+  errorMessage.value = ''
 }
 
-const handleSave = () => {
-  if (modalMode.value === 'create') {
-    const newId = Math.max(...kegiatanList.value.map(k => k.id)) + 1
-    kegiatanList.value.push({
-      ...formData.value,
-      id: newId
-    })
-    alert('Jadwal kegiatan berhasil ditambahkan!')
-  } else if (modalMode.value === 'edit') {
-    const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
-    if (index !== -1) {
-      kegiatanList.value[index] = { ...formData.value }
-      alert('Jadwal kegiatan berhasil diperbarui!')
+const handleSave = async () => {
+  isLoading.value = true
+  errorMessage.value = ''
+  
+  try {
+    let response
+    const payload = {
+      nama: formData.value.nama,
+      tanggal: formData.value.tanggal,
+      deskripsi: formData.value.deskripsi
     }
+
+    if (modalMode.value === 'create') {
+      response = await api.post('/schedules', payload)
+      // Tambahkan data baru ke list
+      kegiatanList.value.push(response.data.data)
+      alert(response.data.message) // Tampilkan pesan sukses dari API
+    } else if (modalMode.value === 'edit') {
+      response = await api.put(`/schedules/${formData.value.id}`, payload)
+      // Update data yang ada di list
+      const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
+      if (index !== -1) {
+        kegiatanList.value[index] = response.data.data
+      }
+      alert(response.data.message) // Tampilkan pesan sukses dari API
+    }
+    closeModal()
+  } catch (error) {
+    console.error('Error saving schedule:', error)
+    
+    if (error.response && error.response.status === 422) {
+      // Error validasi dari Laravel
+      const errors = error.response.data
+      let errorMsg = 'Terjadi kesalahan validasi:\n'
+      
+      // Iterasi error untuk setiap field
+      for (const field in errors) {
+        // Laravel mengembalikan error sebagai array string
+        if (Array.isArray(errors[field])) {
+          errorMsg += `${errors[field].join(', ')}\n`
+        } else {
+          errorMsg += `${errors[field]}\n`
+        }
+      }
+      errorMessage.value = errorMsg
+    } else {
+      errorMessage.value = 'Gagal menyimpan jadwal. Silakan coba lagi.'
+    }
+  } finally {
+    isLoading.value = false
   }
-  closeModal()
 }
 
-const handleDelete = (kegiatan) => {
-  if (confirm(`Apakah Anda yakin ingin menghapus jadwal "${kegiatan.namaKegiatan}"?`)) {
-    const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
-    if (index !== -1) {
-      kegiatanList.value.splice(index, 1)
-      alert('Jadwal kegiatan berhasil dihapus.')
+const handleDelete = async (kegiatan) => {
+  if (confirm(`Apakah Anda yakin ingin menghapus jadwal "${kegiatan.nama}"?`)) {
+    isLoading.value = true
+    errorMessage.value = ''
+    
+    try {
+      const response = await api.delete(`/schedules/${kegiatan.id}`)
+      
+      // Hapus dari list tanpa perlu fetch ulang
+      const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
+      if (index !== -1) {
+        kegiatanList.value.splice(index, 1)
+      }
+      alert(response.data.message) // Tampilkan pesan sukses dari API
+    } catch (error) {
+      console.error('Error deleting schedule:', error)
+      if (error.response && error.response.data && error.response.data.message) {
+          errorMessage.value = error.response.data.message
+      } else {
+          errorMessage.value = 'Gagal menghapus jadwal. Silakan coba lagi.'
+      }
+    } finally {
+      isLoading.value = false
     }
   }
 }
+
+// Load data saat komponen pertama kali dimuat
+onMounted(() => {
+  fetchKegiatan()
+})
 </script>
 
 <style scoped>
+/* ... Gaya CSS tetap sama ... */
 /* --- General Layout --- */
 .kelola-kalender-container {
   padding: 1.5rem;
@@ -222,6 +310,19 @@ const handleDelete = (kegiatan) => {
   color: #2c3e50;
   margin: 0;
   font-size: 2rem;
+}
+
+/* Alert Styling */
+.alert {
+  padding: 0.75rem 1.25rem;
+  margin-bottom: 1rem;
+  border: 1px solid transparent;
+  border-radius: 0.25rem;
+}
+.alert-danger {
+  color: #721c24;
+  background-color: #f8d7da;
+  border-color: #f5c6cb;
 }
 
 /* --- Search Bar --- */
@@ -275,6 +376,10 @@ const handleDelete = (kegiatan) => {
   vertical-align: middle;
 }
 
+.text-center {
+  text-align: center;
+}
+
 .action-buttons {
   display: flex;
   gap: 0.5rem;
@@ -293,11 +398,16 @@ const handleDelete = (kegiatan) => {
   gap: 0.5rem;
 }
 
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   background-color: #007bce;
   color: white;
 }
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background-color: #0056b3;
 }
 
@@ -411,14 +521,17 @@ const handleDelete = (kegiatan) => {
   color: #495057;
 }
 .form-group input[type="text"],
-.form-group input[type="date"] {
+.form-group input[type="date"],
+.form-group textarea {
   width: 100%;
   padding: 0.75rem;
   border: 1px solid #ced4da;
   border-radius: 8px;
   font-size: 1rem;
+  box-sizing: border-box; /* Penting agar padding tidak menambah lebar */
 }
-.form-group input:disabled {
+.form-group input:disabled,
+.form-group textarea:disabled {
   background-color: #f8f9fa;
   cursor: not-allowed;
 }

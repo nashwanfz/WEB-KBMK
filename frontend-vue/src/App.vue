@@ -1,39 +1,93 @@
 <template>
   <div>
     <!-- 
-      App.vue sekarang mengatur semua tampilan utama.
+      App.vue mengatur semua tampilan utama.
       - 'public': Tampilkan PublicPage
       - 'login': Tampilkan Login
-      - 'admin': Tampilkan AdminLayout
+      - 'admin': Tampilkan AdminLayout (yang berisi KelolaKalender)
     -->
     <PublicPage v-if="currentView === 'public'" @show-login="currentView = 'login'" />
-    <Login v-else-if="currentView === 'login'" @login-success="handleLoginSuccess" @show-home="currentView = 'public'" />
+    <Login 
+      v-else-if="currentView === 'login'" 
+      @login-success="handleLoginSuccess" 
+      @show-home="currentView = 'public'" 
+    />
     <AdminLayout v-else-if="currentView === 'admin'" />
+    
+    <!-- Loading screen saat mengecek token saat pertama kali load -->
+    <div v-if="isLoading" class="initial-loading">
+      <i class="fas fa-spinner fa-spin"></i>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, provide } from 'vue';
+import { ref, computed, provide, onMounted } from 'vue';
 import PublicPage from './components/PublicPage.vue';
 import Login from './components/Login.vue';
 import AdminLayout from './components/AdminLayout.vue';
 
-// Hanya SATU state untuk mengatur SEMUA tampilan
+// --- STATE UNTUK MENGATUR TAMPILAN ---
 const currentView = ref('public'); // Bisa bernilai: 'public', 'login', 'admin'
 
-// Fungsi yang dipanggil saat login berhasil (dari Login.vue)
-const handleLoginSuccess = () => {
+// --- STATE UNTUK AUTENTIKASI ---
+const token = ref(localStorage.getItem('token') || null);
+const user = ref(token.value ? JSON.parse(localStorage.getItem('user') || 'null') : null);
+const isLoading = ref(true);
+
+// Computed property untuk status login
+const isLoggedIn = computed(() => !!token.value);
+
+// --- FUNGSI AUTENTIKASI ---
+
+// Dipanggil saat login berhasil (dari Login.vue)
+const handleLoginSuccess = (loginData) => {
+  const { token: receivedToken, user: receivedUser } = loginData;
+  
+  // Update state
+  token.value = receivedToken;
+  user.value = receivedUser;
+  
+  // Simpan ke localStorage agar tetap login setelah refresh
+  localStorage.setItem('token', receivedToken);
+  localStorage.setItem('user', JSON.stringify(receivedUser));
+  
+  // Pindah ke view admin
   currentView.value = 'admin';
 };
 
-// Fungsi untuk logout
+// Dipanggil saat tombol logout ditekan (dari AdminLayout.vue)
 const handleLogout = () => {
+  // Hapus state
+  token.value = null;
+  user.value = null;
+  
+  // Hapus dari localStorage
+  localStorage.removeItem('token');
+  localStorage.removeItem('user');
+  
+  // Pindah ke view public
   currentView.value = 'public';
 };
 
-// Berikan fungsi handleLoginSuccess dan handleLogout ke komponen anak
-provide('login-success', handleLoginSuccess);
-provide('logout', handleLogout);
+// Cek status login saat aplikasi pertama kali dimuat
+onMounted(() => {
+  // Jika ada token, kita anggap user sudah login dan langsung arahkan ke admin
+  if (token.value) {
+    currentView.value = 'admin';
+  }
+  // Sembunyikan loading screen
+  isLoading.value = false;
+});
+
+// --- PROVIDE ---
+// Sediakan data dan fungsi autentikasi ke semua komponen anak
+provide('auth', {
+  token,
+  user,
+  isLoggedIn,
+  handleLogout
+});
 </script>
 
 <!-- Style global, tanpa scoped -->
@@ -50,11 +104,23 @@ html {
   scroll-behavior: smooth;
 }
 
-html, body {
+html, body, #app {
   overflow: auto !important; /* Gunakan !important untuk mengesampingkan aturan lain */
 }
 
-#app-wrapper {
-  overflow: auto !important;
+/* Loading screen awal */
+.initial-loading {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(255, 255, 255, 0.9);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 2rem;
+  color: #007bce;
+  z-index: 9999;
 }
 </style>

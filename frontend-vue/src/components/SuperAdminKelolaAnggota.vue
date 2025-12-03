@@ -32,7 +32,8 @@
         <tbody>
           <tr v-for="anggota in filteredAnggota" :key="anggota.id">
             <td>
-              <img :src="anggota.foto_url || getDefaultPhoto()" alt="Foto" class="kegiatan-photo" />
+              <!-- MODIFIKASI: Gunakan fungsi getPhotoUrl untuk membuat URL yang benar -->
+              <img :src="getPhotoUrl(anggota.foto_url)" alt="Foto" class="kegiatan-photo" />
             </td>
             <td>{{ anggota.nama }}</td>
             <td>{{ anggota.jabatan }}</td>
@@ -64,7 +65,7 @@
           </button>
         </div>
         <div class="modal-body">
-          <form @submit.prevent="handleSave">
+          <form>
             <div class="form-group">
               <label for="nama">Nama Anggota</label>
               <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view'" required />
@@ -86,9 +87,15 @@
               <input type="file" id="foto" @change="handlePhotoUpload" accept="image/*" />
               <p class="photo-hint">*Pilih file gambar untuk foto anggota.</p>
             </div>
+            <!-- MODIFIKASI: Tampilkan foto saat ini di mode view/edit -->
             <div class="form-group" v-if="modalMode === 'view' && formData.foto_url">
               <label>Foto Saat Ini</label>
-              <img :src="formData.foto_url" alt="Foto Anggota" class="current-photo" />
+              <img :src="getPhotoUrl(formData.foto_url)" alt="Foto Anggota" class="current-photo" />
+            </div>
+             <!-- MODIFIKASI: Tampilkan preview foto baru di mode edit jika ada -->
+            <div class="form-group" v-if="modalMode === 'edit' && formData.foto_url && formData.foto_url.startsWith('data:')">
+              <label>Preview Foto Baru</label>
+              <img :src="formData.foto_url" alt="Preview Foto Baru" class="current-photo" />
             </div>
           </form>
         </div>
@@ -96,7 +103,7 @@
           <button v-if="modalMode === 'view'" class="btn btn-secondary" @click="closeModal">Tutup</button>
           <template v-else>
             <button type="button" class="btn btn-secondary" @click="closeModal">Batal</button>
-            <button type="submit" class="btn btn-primary" @click="handleSave">Simpan</button>
+            <button type="button" class="btn btn-primary" @click="handleSave">Simpan</button>
           </template>
         </div>
       </div>
@@ -106,7 +113,8 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { pengurusService } from '../api/pengurusService';
+// MODIFIKASI: Impor axios langsung, bukan pengurusService
+import axios from 'axios';
 
 // --- STATE ---
 const pengurusList = ref([]);
@@ -120,8 +128,8 @@ const formData = ref({
   jabatan: '',
   divisi: '',
   deskripsi: '',
-  foto: null, // Simpan objek File, bukan string base64
-  foto_url: null // Simpan URL foto dari backend
+  foto: null, // Simpan objek File untuk upload baru
+  foto_url: null // Simpan URL untuk preview (base64 atau URL lama)
 });
 
 // --- COMPUTED ---
@@ -150,6 +158,19 @@ const getDefaultPhoto = () => {
   return 'https://i.pravatar.cc/150?d=mp';
 };
 
+// MODIFIKASI: Fungsi baru untuk membuat URL foto yang benar
+const getPhotoUrl = (foto) => {
+  if (!foto) {
+    return getDefaultPhoto();
+  }
+  // Jika 'foto' sudah berupa URL lengkap, gunakan saja
+  if (foto.startsWith('http')) {
+    return foto;
+  }
+  // Jika hanya path (misal: /storage/pengurus/foto.jpg), gabungkan dengan base URL
+  return `http://localhost:8000${foto}`;
+};
+
 const formatDate = (dateString) => {
   if (!dateString) return '';
   return new Date(dateString).toLocaleDateString('id-ID', {
@@ -161,11 +182,12 @@ const formatDate = (dateString) => {
 
 const openModal = (mode, anggota = null) => {
   modalMode.value = mode;
-  if (mode === 'create') {
-    formData.value = { id: null, nama: '', jabatan: '', divisi: '', deskripsi: '', foto: null, foto_url: null };
-  } else {
-    // Salin data, termasuk URL foto
-    formData.value = { ...anggota, foto: null }; // foto tidak perlu disalin
+  // Reset form terlebih dahulu
+  formData.value = { id: null, nama: '', jabatan: '', divisi: '', deskripsi: '', foto: null, foto_url: null };
+
+  if (mode !== 'create' && anggota) {
+    // Salin data anggota ke formData
+    formData.value = { ...anggota, foto: null };
   }
   showModal.value = true;
 };
@@ -174,31 +196,76 @@ const closeModal = () => {
   showModal.value = false;
 };
 
+// MODIFIKASI: Ganti seluruh logika pengambilan data
 const fetchPengurus = async () => {
   isLoading.value = true;
   try {
-    const response = await pengurusService.getPengurus();
-    pengurusList.value = response.data.data; // Asumsi struktur response dari API Anda
-  } catch (error) {
-    console.error('Gagal mengambil data pengurus:', error);
+    // 1. Ambil data langsung menggunakan axios
+    const res = await axios.get("http://localhost:8000/api/pengurus");
+    const data = res.data.data;
+
+    // 2. (Opsional) Kelompokkan pengurus berdasarkan divisi jika diperlukan di tempat lain
+    // Bagian ini diambil dari kode Anda, meskipun tidak digunakan langsung di tabel
+    const grouped = {};
+    data.forEach((item) => {
+      if (!grouped[item.divisi]) grouped[item.divisi] = [];
+      grouped[item.divisi].push(item);
+    });
+
+    const divisions = Object.entries(grouped).map(([divisi, members]) => {
+      const koordinator = members.reduce((min, m) => (m.id < min.id ? m : min));
+      const sortedMembers = [koordinator, ...members.filter((m) => m.id !== koordinator.id)];
+      return { divisi, members: sortedMembers };
+    });
+    console.log('Data grouped by division:', divisions); // Untuk debugging, bisa dihapus
+
+    // 3. Ratakan kembali data untuk digunakan di tabel
+    // Ini penting agar template tabel yang lama tetap berfungsi
+    pengurusList.value = data;
+
+  } catch (err) {
+    console.error('Gagal mengambil data pengurus:', err);
     alert('Gagal memuat data pengurus. Silakan coba lagi.');
   } finally {
     isLoading.value = false;
   }
 };
 
+// MODIFIKASI: Fungsi handleSave yang sekarang menggunakan axios langsung
 const handleSave = async () => {
   try {
     let response;
     if (modalMode.value === 'create') {
-      response = await pengurusService.createPengurus(formData.value);
+      const dataToSend = new FormData();
+      dataToSend.append('nama', formData.value.nama);
+      dataToSend.append('jabatan', formData.value.jabatan);
+      dataToSend.append('divisi', formData.value.divisi);
+      dataToSend.append('deskripsi', formData.value.deskripsi);
+      if (formData.value.foto) {
+        dataToSend.append('foto', formData.value.foto);
+      }
+      
+      response = await axios.post("http://localhost:8000/api/pengurus", dataToSend, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       alert('Anggota berhasil ditambahkan!');
     } else if (modalMode.value === 'edit') {
-      response = await pengurusService.updatePengurus(formData.value.id, formData.value);
+      const dataToUpdate = new FormData();
+      dataToUpdate.append('_method', 'PUT'); // Spoofing method untuk Laravel
+      dataToUpdate.append('nama', formData.value.nama);
+      dataToUpdate.append('jabatan', formData.value.jabatan);
+      dataToUpdate.append('divisi', formData.value.divisi);
+      dataToUpdate.append('deskripsi', formData.value.deskripsi);
+      if (formData.value.foto instanceof File) {
+        dataToUpdate.append('foto', formData.value.foto);
+      }
+
+      response = await axios.post(`http://localhost:8000/api/pengurus/${formData.value.id}`, dataToUpdate, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
       alert('Data anggota berhasil diperbarui!');
     }
     
-    // Refresh data dari server setelah berhasil
     await fetchPengurus();
     closeModal();
   } catch (error) {
@@ -207,12 +274,13 @@ const handleSave = async () => {
   }
 };
 
+// MODIFIKASI: Fungsi handleDelete menggunakan axios
 const handleDelete = async (anggota) => {
   if (confirm(`Apakah Anda yakin ingin menghapus "${anggota.nama}"?`)) {
     try {
-      await pengurusService.deletePengurus(anggota.id);
+      await axios.delete(`http://localhost:8000/api/pengurus/${anggota.id}`);
       alert('Anggota berhasil dihapus.');
-      await fetchPengurus(); // Refresh data
+      await fetchPengurus();
     } catch (error) {
       console.error('Gagal menghapus data:', error);
       alert('Gagal menghapus data anggota. Silakan coba lagi.');
@@ -223,10 +291,7 @@ const handleDelete = async (anggota) => {
 const handlePhotoUpload = (event) => {
   const file = event.target.files[0];
   if (file) {
-    // Simpan objek file ke formData.value untuk dikirim ke backend
     formData.value.foto = file;
-    
-    // Buat URL preview sementara (opsional, untuk ditampilkan di modal)
     const reader = new FileReader();
     reader.onload = (e) => {
       formData.value.foto_url = e.target.result;
@@ -321,7 +386,6 @@ onMounted(() => {
   vertical-align: middle;
 }
 
-/* Style khusus untuk foto kegiatan (persegi panjang) */
 .kegiatan-photo {
   width: 100px;
   height: 70px;
