@@ -32,6 +32,8 @@ Route::get('/links/{id}', [LinkController::class, 'show']);
 // Guest mengajukan surat
 Route::post('/surat-requests', [SuratRequestController::class, 'store']);
 
+Route::get('/divisions', [PengurusController::class, 'divisions']);
+
 // API Routes - Protected (Membutuhkan Login)
 Route::middleware('auth:sanctum')->group(function () {
     

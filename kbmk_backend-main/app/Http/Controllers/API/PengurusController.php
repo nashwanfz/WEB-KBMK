@@ -4,8 +4,8 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\API\Division;
 use App\Models\API\Pengurus;
-use App\Models\Division;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 
@@ -199,5 +199,35 @@ class PengurusController extends Controller
         $pengurus->delete();
 
         return response()->json(['message' => 'Pengurus deleted successfully']);
+    }
+
+     /**
+     * @OA\Get(
+     *     path="/divisions",
+     *     tags={"Pengurus"},
+     *     summary="Menampilkan daftar divisi untuk dropdown",
+     *     description="Endpoint publik untuk mengambil semua data divisi. Biasa digunakan untuk mengisi form dropdown pada saat menambah atau mengedit pengurus.",
+     *     @OA\Response(
+     *         response=200,
+     *         description="Berhasil",
+     *         @OA\JsonContent(
+     *             type="object",
+     *             @OA\Property(property="data", type="array", @OA\Items(
+     *                 type="object",
+     *                 @OA\Property(property="id", type="integer", example=1),
+     *                 @OA\Property(property="nama", type="string", example="Kesekretariatan")
+     *             ))
+     *         )
+     *     )
+     * )
+     */
+    public function divisions()
+    {
+        // Kode method tidak berubah
+        $divisions = Division::select('id', 'nama')->latest()->get();
+
+        return response()->json([
+            'data' => $divisions
+        ]);
     }
 }

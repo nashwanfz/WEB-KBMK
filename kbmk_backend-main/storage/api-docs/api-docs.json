@@ -1007,6 +1007,46 @@
                 ]
             }
         },
+        "/divisions": {
+            "get": {
+                "tags": [
+                    "Pengurus"
+                ],
+                "summary": "Menampilkan daftar divisi untuk dropdown",
+                "description": "Endpoint publik untuk mengambil semua data divisi. Biasa digunakan untuk mengisi form dropdown pada saat menambah atau mengedit pengurus.",
+                "operationId": "025c0df797098944ed82c345248980ed",
+                "responses": {
+                    "200": {
+                        "description": "Berhasil",
+                        "content": {
+                            "application/json": {
+                                "schema": {
+                                    "properties": {
+                                        "data": {
+                                            "type": "array",
+                                            "items": {
+                                                "properties": {
+                                                    "id": {
+                                                        "type": "integer",
+                                                        "example": 1
+                                                    },
+                                                    "nama": {
+                                                        "type": "string",
+                                                        "example": "Kesekretariatan"
+                                                    }
+                                                },
+                                                "type": "object"
+                                            }
+                                        }
+                                    },
+                                    "type": "object"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/profile-descs": {
             "get": {
                 "tags": [
