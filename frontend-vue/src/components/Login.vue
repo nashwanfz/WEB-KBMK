@@ -49,6 +49,10 @@ const handleLogin = async () => {
     // 'user' ini berisi seluruh data user, termasuk 'roles'
     const { token, user } = response.data.data;
     
+    console.log('✅ Login.vue: Berhasil dapat token dari API.');
+console.log('Token:', token);
+console.log('User:', user);
+console.log('✅ Login.vue: Akan mengirim event login-success...');
     // Jika "Remember Me" dicentang, simpan email
     if (rememberMe.value) {
       localStorage.setItem('rememberedUser', email.value);

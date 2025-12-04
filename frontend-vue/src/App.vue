@@ -1,12 +1,14 @@
 <script setup>
 import { ref, computed, provide, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
+// DIHAPUS: useRouter tidak lagi diperlukan karena kita tidak menggunakan router.push()
+// import { useRouter } from 'vue-router'; 
 import axios from 'axios';
 import PublicPage from './components/PublicPage.vue';
 import Login from './components/Login.vue';
 import AdminLayout from './components/AdminLayout.vue';
 
-const router = useRouter();
+// DIHAPUS: Inisialisasi router tidak lagi diperlukan
+// const router = useRouter();
 
 // --- STATE UNTUK MENGATUR TAMPILAN ---
 const currentView = ref('public');
@@ -46,26 +48,27 @@ api.interceptors.response.use(
 );
 
 // --- COMPUTED PROPERTIES UNTUK CEK ROLE ---
-// Ini adalah fungsi yang akan digunakan komponen lain untuk mengecek role
 const isAdmin = computed(() => user.value?.roles === 'admin' || user.value?.roles === 'superadmin');
 const isSuperAdmin = computed(() => user.value?.roles === 'superadmin');
-const isKoorMedia = computed(() => user.value?.roles === 'koordinator_media'); // Sesua dengan role Anda
+const isKoorMedia = computed(() => user.value?.roles === 'koordinator_media');
 
 // --- FUNGSI AUTENTIKASI ---
 const handleLoginSuccess = (loginData) => {
   const { token: receivedToken, user: receivedUser } = loginData;
-  
+    console.log('✅ App.vue: Event login-success DITERIMA!');
+  console.log('Data yang diterima App.vue:', loginData);
   // Update state dengan token dan data user LENGKAP
   token.value = receivedToken;
   user.value = receivedUser;
   
   // Simpan ke localStorage agar tetap login setelah refresh
   localStorage.setItem('auth_token', receivedToken);
-  localStorage.setItem('user_data', JSON.stringify(receivedUser)); // Simpan data user lengkap
+  localStorage.setItem('user_data', JSON.stringify(receivedUser));
   
   // Pindah ke view admin
   currentView.value = 'admin';
-  router.push('/admin');
+  // DIHAPUS: Tidak perlu router.push() karena perubahan currentView sudah cukup
+  // router.push('/admin');
 };
 
 const logout = () => {
@@ -79,31 +82,31 @@ const logout = () => {
   
   // Pindah ke view public
   currentView.value = 'public';
-  router.push('/');
+  // DIHAPUS: Tidak perlu router.push() karena perubahan currentView sudah cukup
+  // router.push('/');
 };
 
-// --- FUNGSI VERIFIKASI TOKEN YANG LEBIH BAIK ---
+// --- FUNGSI VERIFIKASI TOKEN ---
 const checkStoredToken = async () => {
   if (token.value) {
     console.log('Token ditemukan, memverifikasi ke server...');
     try {
-      // Verifikasi token dengan endpoint /me
       const response = await api.get('/me');
       user.value = response.data.data;
       currentView.value = 'admin';
-      router.push('/admin');
+      // DIHAPUS: Tidak perlu router.push() karena perubahan currentView sudah cukup
+      // router.push('/admin');
       console.log('Token valid, login berhasil.');
     } catch (error) {
       console.error('Verifikasi token gagal:', error.message);
       logout(); // Token tidak valid, hapus dan arahkan ke login
     }
   }
+  // PASTIKAN INI SELALU DIJALANKAN DI AKHIR FUNGSI
   isLoading.value = false;
 };
 
 // --- PROVIDE ---
-// Sediakan data dan fungsi autentikasi ke semua komponen anak
-// PERUBAHAN PENTING: Sertakan user, isAdmin, isSuperAdmin, isKoorMedia
 provide('auth', {
   token,
   user,
@@ -120,7 +123,7 @@ onMounted(() => {
 });
 </script>
 
-<!-- Template dan Style tidak berubah -->
+<!-- Template dan Style tidak perlu diubah -->
 <template>
   <div>
     <PublicPage v-if="currentView === 'public'" @show-login="currentView = 'login'" />
