@@ -12,7 +12,14 @@
       <i class="fas fa-search"></i>
     </div>
 
-    <div class="table-wrapper">
+    <!-- PERUBAHAN 1: Ganti struktur loading dan tabel -->
+    <!-- Tampilkan indikator loading di luar tabel -->
+    <div v-if="isLoading" class="loading-indicator">
+      <i class="fas fa-spinner fa-spin"></i> Memuat data...
+    </div>
+
+    <!-- Tampilkan tabel jika TIDAK loading -->
+    <div v-else class="table-wrapper">
       <table class="data-table">
         <thead>
           <tr>
@@ -23,22 +30,25 @@
           </tr>
         </thead>
         <tbody>
+          <!-- PERUBAHAN 2: Hapus baris loading lama dari dalam tbody -->
+          <!-- Tampilkan pesan jika tidak ada data -->
+          <tr v-if="filteredKegiatan.length === 0">
+            <td colspan="4" class="text-center">Tidak ada kegiatan.</td>
+          </tr>
+          <!-- Tampilkan data kegiatan -->
           <tr v-for="kegiatan in filteredKegiatan" :key="kegiatan.id">
             <td>
-              <img :src="kegiatan.foto || getDefaultPhoto()" alt="Foto Kegiatan" class="kegiatan-photo" />
+              <img :src="kegiatan.foto_url || getDefaultPhoto()" alt="Foto Kegiatan" class="kegiatan-photo" />
             </td>
-            <td>{{ kegiatan.namaKegiatan }}</td>
+            <td>{{ kegiatan.nama }}</td>
             <td>{{ kegiatan.deskripsi }}</td>
             <td class="action-buttons">
-              <!-- Tombol Lihat (Biru) -->
               <button class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
                 <i class="fas fa-eye"></i>
               </button>
-              <!-- Tombol Edit (Oranye) -->
               <button class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
                 <i class="fas fa-edit"></i>
               </button>
-              <!-- Tombol Hapus (Merah) -->
               <button class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus">
                 <i class="fas fa-trash"></i>
               </button>
@@ -60,8 +70,8 @@
         <div class="modal-body">
           <form @submit.prevent="handleSave">
             <div class="form-group">
-              <label for="namaKegiatan">Nama Kegiatan</label>
-              <input type="text" id="namaKegiatan" v-model="formData.namaKegiatan" :disabled="modalMode === 'view'" required />
+              <label for="nama">Nama Kegiatan</label>
+              <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view'" required />
             </div>
             <div class="form-group">
               <label for="deskripsi">Deskripsi</label>
@@ -72,9 +82,9 @@
               <input type="file" id="foto" @change="handlePhotoUpload" accept="image/*" />
               <p class="photo-hint">*Upload foto untuk mengganti. Kosongkan jika tidak ingin mengubah.</p>
             </div>
-            <div class="form-group" v-if="modalMode === 'view' && formData.foto">
+            <div class="form-group" v-if="modalMode === 'view' && formData.foto_url">
               <label>Foto Saat Ini</label>
-              <img :src="formData.foto" alt="Foto Kegiatan" class="current-photo" />
+              <img :src="formData.foto_url" alt="Foto Kegiatan" class="current-photo" />
             </div>
           </form>
         </div>
@@ -82,7 +92,12 @@
           <button v-if="modalMode === 'view'" class="btn btn-secondary" @click="closeModal">Tutup</button>
           <template v-else>
             <button type="button" class="btn btn-secondary" @click="closeModal">Batal</button>
-            <button type="submit" class="btn btn-primary" @click="handleSave">Simpan</button>
+            <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isLoading">
+              <span v-if="isLoading">
+                <i class="fas fa-spinner fa-spin"></i> Menyimpan...
+              </span>
+              <span v-else>Simpan</span>
+            </button>
           </template>
         </div>
       </div>
@@ -91,49 +106,46 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+// ... (Bagian script tidak berubah, sudah benar)
+import { ref, computed, onMounted, inject } from 'vue'
+import axios from 'axios'
 
-// --- MOCK DATA ---
-const kegiatanList = ref([
-  {
-    id: 1,
-    namaKegiatan: 'Bakti Sosial Desa',
-    deskripsi: 'Kegiatan pengabdian masyarakat berupa pemberian bantuan sembako dan ceramah kesehatan di Desa Sukamaju.',
-    foto: 'https://picsum.photos/id/10/800/600'
-  },
-  {
-    id: 2,
-    namaKegiatan: 'Workshop Web Development',
-    deskripsi: 'Pelatihan intensif tentang pengembangan website modern menggunakan framework Vue.js untuk anggota internal.',
-    foto: 'https://picsum.photos/id/20/800/600'
-  },
-  {
-    id: 3,
-    namaKegiatan: 'Lomba Olahraga Antar Divisi',
-    deskripsi: 'Event tahunan untuk mempererat tali silaturahmi dan kekompakan antar divisi dalam KBMK melalui berbagai cabang olahraga.',
-    foto: null // Contoh tanpa foto
+const auth = inject('auth');
+const API_URL = 'http://localhost:8000/api'; 
+
+const api = axios.create({
+  baseURL: API_URL,
+  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+});
+
+api.interceptors.request.use(config => {
+  if (auth.token.value) {
+    config.headers.Authorization = `Bearer ${auth.token.value}`;
   }
-])
+  return config;
+});
 
-// --- STATE ---
+const kegiatanList = ref([])
 const searchQuery = ref('')
 const showModal = ref(false)
-const modalMode = ref('create') // 'create', 'view', 'edit'
+const modalMode = ref('create')
 const formData = ref({
   id: null,
-  namaKegiatan: '',
+  nama: '',
   deskripsi: '',
-  foto: null
+  foto: null,
+  foto_url: null
 })
+const isLoading = ref(false)
+const errorMessage = ref('')
 
-// --- COMPUTED ---
 const filteredKegiatan = computed(() => {
   if (!searchQuery.value) {
     return kegiatanList.value
   }
   const query = searchQuery.value.toLowerCase()
   return kegiatanList.value.filter(kegiatan =>
-    kegiatan.namaKegiatan.toLowerCase().includes(query)
+    kegiatan.nama.toLowerCase().includes(query)
   )
 })
 
@@ -146,49 +158,109 @@ const modalTitle = computed(() => {
   }
 })
 
-// --- METHODS ---
 const getDefaultPhoto = () => {
-  return 'https://picsum.photos/id/99/800/600' // Default foto kegiatan
+  return 'https://picsum.photos/id/99/800/600'
+}
+
+const fetchKegiatan = async () => {
+  isLoading.value = true
+  errorMessage.value = ''
+  
+  try {
+    const response = await api.get('/documentations')
+    kegiatanList.value = response.data.data
+  } catch (error) {
+    console.error('Error fetching documentations:', error)
+    if (error.response && error.response.status === 401) {
+      errorMessage.value = 'Sesi Anda telah berakhir. Silakan login kembali.';
+      auth.handleLogout();
+    } else {
+      errorMessage.value = 'Gagal memuat data. Periksa konsol untuk detail.'
+    }
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const openModal = (mode, kegiatan = null) => {
   modalMode.value = mode
+  errorMessage.value = ''
   if (mode === 'create') {
-    formData.value = { id: null, namaKegiatan: '', deskripsi: '', foto: null }
+    formData.value = { id: null, nama: '', deskripsi: '', foto: null, foto_url: null }
   } else {
-    formData.value = { ...kegiatan } // Salin data untuk diedit atau dilihat
+    formData.value = { ...kegiatan, foto: null }
   }
   showModal.value = true
 }
 
 const closeModal = () => {
   showModal.value = false
+  errorMessage.value = ''
 }
 
-const handleSave = () => {
-  if (modalMode.value === 'create') {
-    const newId = Math.max(...kegiatanList.value.map(k => k.id)) + 1
-    kegiatanList.value.push({
-      ...formData.value,
-      id: newId
-    })
-    alert('Kegiatan berhasil ditambahkan!')
-  } else if (modalMode.value === 'edit') {
-    const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
-    if (index !== -1) {
-      kegiatanList.value[index] = { ...formData.value }
-      alert('Data kegiatan berhasil diperbarui!')
+const handleSave = async () => {
+  isLoading.value = true
+  errorMessage.value = ''
+  
+  try {
+    const dataPayload = new FormData();
+    dataPayload.append('nama', formData.value.nama);
+    dataPayload.append('deskripsi', formData.value.deskripsi);
+    
+    if (formData.value.foto) {
+      dataPayload.append('foto', formData.value.foto);
     }
+
+    let response
+    if (modalMode.value === 'create') {
+      response = await api.post('/documentations', dataPayload)
+      kegiatanList.value.push(response.data.data)
+      alert(response.data.message)
+    } else if (modalMode.value === 'edit') {
+      dataPayload.append('_method', 'PUT');
+      response = await api.post(`/documentations/${formData.value.id}`, dataPayload)
+      
+      const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
+      if (index !== -1) {
+        kegiatanList.value[index] = response.data.data
+      }
+      alert(response.data.message)
+    }
+    closeModal()
+  } catch (error) {
+    console.error('Error saving documentation:', error)
+    if (error.response && error.response.status === 422) {
+      const errors = error.response.data
+      let errorMsg = 'Terjadi kesalahan validasi:\n'
+      for (const field in errors) {
+        errorMsg += `${errors[field].join(', ')}\n`
+      }
+      errorMessage.value = errorMsg
+    } else {
+      errorMessage.value = 'Gagal menyimpan kegiatan. Periksa konsol untuk detail.'
+    }
+  } finally {
+    isLoading.value = false
   }
-  closeModal()
 }
 
-const handleDelete = (kegiatan) => {
-  if (confirm(`Apakah Anda yakin ingin menghapus "${kegiatan.namaKegiatan}"?`)) {
-    const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
-    if (index !== -1) {
-      kegiatanList.value.splice(index, 1)
-      alert('Kegiatan berhasil dihapus.')
+const handleDelete = async (kegiatan) => {
+  if (confirm(`Apakah Anda yakin ingin menghapus "${kegiatan.nama}"?`)) {
+    isLoading.value = true
+    errorMessage.value = ''
+    
+    try {
+      const response = await api.delete(`/documentations/${kegiatan.id}`)
+      const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
+      if (index !== -1) {
+        kegiatanList.value.splice(index, 1)
+      }
+      alert(response.data.message)
+    } catch (error) {
+      console.error('Error deleting documentation:', error)
+      errorMessage.value = 'Gagal menghapus kegiatan. Periksa konsol untuk detail.'
+    } finally {
+      isLoading.value = false
     }
   }
 }
@@ -196,13 +268,13 @@ const handleDelete = (kegiatan) => {
 const handlePhotoUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      formData.value.foto = e.target.result
-    }
-    reader.readAsDataURL(file)
+    formData.value.foto = file
   }
 }
+
+onMounted(() => {
+  fetchKegiatan()
+})
 </script>
 
 <style scoped>
@@ -224,6 +296,14 @@ const handlePhotoUpload = (event) => {
   color: #2c3e50;
   margin: 0;
   font-size: 2rem;
+}
+
+/* --- PERUBAHAN 3: Tambahkan style untuk loading indicator --- */
+.loading-indicator {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+  color: #007bce; /* Warna biru sesuai permintaan */
 }
 
 /* --- Search Bar --- */
@@ -277,6 +357,10 @@ const handlePhotoUpload = (event) => {
   vertical-align: middle;
 }
 
+.text-center {
+  text-align: center;
+}
+
 /* Style khusus untuk foto kegiatan (persegi panjang) */
 .kegiatan-photo {
   width: 100px;
@@ -304,11 +388,16 @@ const handlePhotoUpload = (event) => {
   gap: 0.5rem;
 }
 
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   background-color: #007bce;
   color: white;
 }
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background-color: #0056b3;
 }
 
@@ -429,6 +518,7 @@ const handlePhotoUpload = (event) => {
   border: 1px solid #ced4da;
   border-radius: 8px;
   font-size: 1rem;
+  box-sizing: border-box;
 }
 .form-group input:disabled,
 .form-group textarea:disabled {

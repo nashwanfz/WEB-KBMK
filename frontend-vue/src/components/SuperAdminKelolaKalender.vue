@@ -17,7 +17,14 @@
       <i class="fas fa-search"></i>
     </div>
 
-    <div class="table-wrapper">
+    <!-- PERUBAHAN 1: Ganti struktur loading dan tabel -->
+    <!-- Tampilkan indikator loading di luar tabel -->
+    <div v-if="isLoading" class="loading-indicator">
+      <i class="fas fa-spinner fa-spin"></i> Memuat data...
+    </div>
+
+    <!-- Tampilkan tabel jika TIDAK loading -->
+    <div v-else class="table-wrapper">
       <table class="data-table">
         <thead>
           <tr>
@@ -28,12 +35,9 @@
           </tr>
         </thead>
         <tbody>
-          <!-- Tampilkan loading jika sedang mengambil data -->
-          <tr v-if="isLoading">
-            <td colspan="4" class="text-center">Memuat data...</td>
-          </tr>
+          <!-- PERUBAHAN 2: Hapus baris loading lama dari dalam tbody -->
           <!-- Tampilkan pesan jika tidak ada data -->
-          <tr v-else-if="!isLoading && filteredKegiatan.length === 0">
+          <tr v-if="filteredKegiatan.length === 0">
             <td colspan="4" class="text-center">Tidak ada jadwal kegiatan.</td>
           </tr>
           <!-- Tampilkan data jadwal -->
@@ -100,28 +104,43 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+// ... (Bagian script tidak berubah, sudah benar)
+import { ref, computed, onMounted, inject } from 'vue'
 import axios from 'axios'
 
-// Konfigurasi API
-// Ganti dengan URL backend Anda jika perlu
-const API_URL = '/api' 
+// --- PERUBAHAN PENTING 1: INJECT AUTH DARI APP.VUE ---
+const auth = inject('auth');
 
-// Buat instance axios dengan konfigurasi default
+// --- PERUBAHAN PENTING 2: KONFIGURASI AXIOS ---
+// Gunakan URL lengkap jika frontend dan backend terpisah
+const API_URL = 'http://localhost:8000/api'; 
+
+// Buat instance axios
 const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json',
-    // Ambil token dari localStorage dan tambahkan ke header
-    'Authorization': `Bearer ${localStorage.getItem('token')}`
+    'Accept': 'application/json'
   }
-})
+});
+
+// --- PERUBAHAN PENTING 3: INTERCEPTOR UNTUK TOKEN DINAMIS ---
+api.interceptors.request.use(config => {
+  // Ambil token secara reaktif dari auth yang di-inject
+  if (auth.token.value) {
+    config.headers.Authorization = `Bearer ${auth.token.value}`;
+  }
+  console.log('Sending Request:', `${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
+  return config;
+}, error => {
+  return Promise.reject(error);
+});
 
 // --- STATE ---
 const kegiatanList = ref([])
 const searchQuery = ref('')
 const showModal = ref(false)
-const modalMode = ref('create') // 'create', 'view', 'edit'
+const modalMode = ref('create')
 const formData = ref({
   id: null,
   nama: '',
@@ -162,25 +181,31 @@ const formatDate = (dateString) => {
   })
 }
 
-// Fetch data dari API endpoint /schedules
 const fetchKegiatan = async () => {
   isLoading.value = true
   errorMessage.value = ''
   
   try {
     const response = await api.get('/schedules')
-    // Sesuaikan dengan struktur respons API { "data": [...] }
     kegiatanList.value = response.data.data
+    console.log('Successfully fetched schedules:', response.data.data);
   } catch (error) {
     console.error('Error fetching schedules:', error)
-    errorMessage.value = 'Gagal memuat data jadwal. Silakan coba lagi.'
     
-    // Jika error terkait autentikasi (401), redirect ke halaman login
-    if (error.response && error.response.status === 401) {
-      localStorage.removeItem('token')
-      // Asumsikan Anda memiliki router Vue
-      // router.push('/login') 
-      window.location.href = '/login' // Fallback
+    if (error.response) {
+      const status = error.response.status;
+      if (status === 401) {
+        errorMessage.value = 'Sesi Anda telah berakhir. Silakan login kembali.';
+        auth.handleLogout(); 
+      } else if (status === 403) {
+        errorMessage.value = 'Anda tidak memiliki izin untuk mengakses halaman ini.';
+      } else {
+        errorMessage.value = `Gagal memuat data. Server merespons dengan status: ${status}.`;
+      }
+    } else if (error.request) {
+      errorMessage.value = 'Gagal memuat data. Tidak ada respons dari server. Periksa koneksi internet dan alamat API.';
+    } else {
+      errorMessage.value = `Gagal memuat data. Terjadi kesalahan: ${error.message}`;
     }
   } finally {
     isLoading.value = false
@@ -189,11 +214,10 @@ const fetchKegiatan = async () => {
 
 const openModal = (mode, kegiatan = null) => {
   modalMode.value = mode
-  errorMessage.value = '' // Reset error saat modal dibuka
+  errorMessage.value = ''
   if (mode === 'create') {
     formData.value = { id: null, nama: '', tanggal: '', deskripsi: '' }
   } else {
-    // Salin data untuk menghindari modifikasi langsung pada data asli
     formData.value = { ...kegiatan }
   }
   showModal.value = true
@@ -209,48 +233,37 @@ const handleSave = async () => {
   errorMessage.value = ''
   
   try {
-    let response
     const payload = {
       nama: formData.value.nama,
       tanggal: formData.value.tanggal,
       deskripsi: formData.value.deskripsi
     }
 
+    let response
     if (modalMode.value === 'create') {
       response = await api.post('/schedules', payload)
-      // Tambahkan data baru ke list
       kegiatanList.value.push(response.data.data)
-      alert(response.data.message) // Tampilkan pesan sukses dari API
+      alert(response.data.message)
     } else if (modalMode.value === 'edit') {
       response = await api.put(`/schedules/${formData.value.id}`, payload)
-      // Update data yang ada di list
       const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
       if (index !== -1) {
         kegiatanList.value[index] = response.data.data
       }
-      alert(response.data.message) // Tampilkan pesan sukses dari API
+      alert(response.data.message)
     }
     closeModal()
   } catch (error) {
     console.error('Error saving schedule:', error)
-    
     if (error.response && error.response.status === 422) {
-      // Error validasi dari Laravel
       const errors = error.response.data
       let errorMsg = 'Terjadi kesalahan validasi:\n'
-      
-      // Iterasi error untuk setiap field
       for (const field in errors) {
-        // Laravel mengembalikan error sebagai array string
-        if (Array.isArray(errors[field])) {
-          errorMsg += `${errors[field].join(', ')}\n`
-        } else {
-          errorMsg += `${errors[field]}\n`
-        }
+        errorMsg += `${errors[field].join(', ')}\n`
       }
       errorMessage.value = errorMsg
     } else {
-      errorMessage.value = 'Gagal menyimpan jadwal. Silakan coba lagi.'
+      errorMessage.value = 'Gagal menyimpan jadwal. Periksa konsol untuk detail.'
     }
   } finally {
     isLoading.value = false
@@ -264,20 +277,14 @@ const handleDelete = async (kegiatan) => {
     
     try {
       const response = await api.delete(`/schedules/${kegiatan.id}`)
-      
-      // Hapus dari list tanpa perlu fetch ulang
       const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
       if (index !== -1) {
         kegiatanList.value.splice(index, 1)
       }
-      alert(response.data.message) // Tampilkan pesan sukses dari API
+      alert(response.data.message)
     } catch (error) {
       console.error('Error deleting schedule:', error)
-      if (error.response && error.response.data && error.response.data.message) {
-          errorMessage.value = error.response.data.message
-      } else {
-          errorMessage.value = 'Gagal menghapus jadwal. Silakan coba lagi.'
-      }
+      errorMessage.value = 'Gagal menghapus jadwal. Periksa konsol untuk detail.'
     } finally {
       isLoading.value = false
     }
@@ -291,7 +298,6 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* ... Gaya CSS tetap sama ... */
 /* --- General Layout --- */
 .kelola-kalender-container {
   padding: 1.5rem;
@@ -310,6 +316,14 @@ onMounted(() => {
   color: #2c3e50;
   margin: 0;
   font-size: 2rem;
+}
+
+/* --- PERUBAHAN 3: Tambahkan style untuk loading indicator --- */
+.loading-indicator {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+  color: #007bce; /* Warna biru sesuai permintaan */
 }
 
 /* Alert Styling */
@@ -528,7 +542,7 @@ onMounted(() => {
   border: 1px solid #ced4da;
   border-radius: 8px;
   font-size: 1rem;
-  box-sizing: border-box; /* Penting agar padding tidak menambah lebar */
+  box-sizing: border-box;
 }
 .form-group input:disabled,
 .form-group textarea:disabled {

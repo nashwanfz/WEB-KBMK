@@ -7,22 +7,40 @@
       </button>
     </div>
 
-    <div class="visi-misi-content">
-      <div class="content-section">
-        <h2>Visi</h2>
-        <div class="section-text">
-          <p v-for="(paragraf, index) in visiMisiWithParagraphs.visi" :key="`v-${index}`">
-            {{ paragraf }}
-          </p>
-        </div>
+    <!-- Tampilkan indikator loading -->
+    <div v-if="isLoading" class="loading-indicator">
+      <i class="fas fa-spinner fa-spin"></i> Memuat data...
+    </div>
+
+    <!-- Tampilkan konten jika tidak loading -->
+    <div v-else class="visi-misi-content">
+      <!-- PERUBAHAN: Tampilkan pesan jika data kosong -->
+      <div v-if="isDataEmpty" class="empty-state">
+        <i class="fas fa-info-circle"></i>
+        <p>Visi & Misi belum ditambahkan.</p>
+        <button class="btn btn-primary" @click="openModal('edit')">
+          <i class="fas fa-plus"></i> Tambah Sekarang
+        </button>
       </div>
 
-      <div class="content-section">
-        <h2>Misi</h2>
-        <div class="section-text">
-          <p v-for="(paragraf, index) in visiMisiWithParagraphs.misi" :key="`m-${index}`">
-            {{ paragraf }}
-          </p>
+      <!-- Tampilkan data jika ada -->
+      <div v-else>
+        <div class="content-section">
+          <h2>Visi</h2>
+          <div class="section-text">
+            <p v-for="(paragraf, index) in visiMisiWithParagraphs.visi" :key="`v-${index}`">
+              {{ paragraf }}
+            </p>
+          </div>
+        </div>
+
+        <div class="content-section">
+          <h2>Misi</h2>
+          <div class="section-text">
+            <p v-for="(paragraf, index) in visiMisiWithParagraphs.misi" :key="`m-${index}`">
+              {{ paragraf }}
+            </p>
+          </div>
         </div>
       </div>
     </div>
@@ -54,7 +72,12 @@
           <button v-if="modalMode === 'view'" class="btn btn-secondary" @click="closeModal">Tutup</button>
           <template v-else>
             <button type="button" class="btn btn-secondary" @click="closeModal">Batal</button>
-            <button type="submit" class="btn btn-primary" @click="handleSave">Simpan Perubahan</button>
+            <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isLoading">
+              <span v-if="isLoading">
+                <i class="fas fa-spinner fa-spin"></i> Menyimpan...
+              </span>
+              <span v-else>Simpan Perubahan</span>
+            </button>
           </template>
         </div>
       </div>
@@ -63,47 +86,96 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, inject } from 'vue'
+import axios from 'axios'
 
-// --- MOCK DATA ---
-// Data visi dan misi disimpan dalam satu objek
-const visiMisi = ref({
-  visiText: `Menjadi wadah utama bagi mahasiswa komputer untuk mengembangkan potensi diri, profesionalisme, dan kebersamaan dalam bidang teknologi informasi.`,
-  misiText: `1. Menyelenggarakan kegiatan pelatihan dan workshop yang relevan dengan perkembangan teknologi.\n2. Membangun jaringan yang kuat antar mahasiswa, alumni, dan profesional di industri.\n3. Mendorong inovasi dan kreativitas mahasiswa melalui proyek dan kompetisi.\n4. Menjadi mitra strategis bagi fakultas dalam mendukung kegiatan akademik dan kemahasiswaan.`
-})
+// --- INTEGRASI API ---
+const auth = inject('auth');
+const API_URL = 'http://localhost:8000/api';
+
+const api = axios.create({
+  baseURL: API_URL,
+  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
+});
+
+api.interceptors.request.use(config => {
+  if (auth.token.value) {
+    config.headers.Authorization = `Bearer ${auth.token.value}`;
+  }
+  return config;
+});
 
 // --- STATE ---
+// PERUBAHAN: Struktur data untuk menyimpan ID dan deskripsi
+const visiMisi = ref({
+  visi: { id: null, deskripsi: '' },
+  misi: { id: null, deskripsi: '' }
+})
+
+const isLoading = ref(false)
+const errorMessage = ref('')
 const showModal = ref(false)
-const modalMode = ref('edit') // 'view' atau 'edit'
+const modalMode = ref('edit')
 const formData = ref({
   visiText: '',
   misiText: ''
 })
 
 // --- COMPUTED ---
-// Memecah teks visi dan misi menjadi array paragraf/poin
+const modalTitle = computed(() => {
+  return modalMode.value === 'edit' ? 'Edit Visi & Misi' : 'Detail Visi & Misi'
+})
+
+// PERUBAHAN: Computed untuk memecah deskripsi menjadi paragraf
 const visiMisiWithParagraphs = computed(() => {
   return {
-    visi: visiMisi.value.visiText.split(/\n\s*\n/).filter(p => p.trim() !== ''),
-    misi: visiMisi.value.misiText.split('\n').filter(p => p.trim() !== '') // Misi dipisah per baris
+    visi: visiMisi.value.visi.deskripsi.split(/\n\s*\n/).filter(p => p.trim() !== ''),
+    misi: visiMisi.value.misi.deskripsi.split('\n').filter(p => p.trim() !== '')
   }
 })
 
-const modalTitle = computed(() => {
-  switch (modalMode.value) {
-    case 'view': return 'Detail Visi & Misi'
-    case 'edit': return 'Edit Visi & Misi'
-    default: return 'Visi & Misi'
-  }
+// PERUBAHAN: Computed untuk mengecek apakah data kosong
+const isDataEmpty = computed(() => {
+  return !visiMisi.value.visi.deskripsi && !visiMisi.value.misi.deskripsi;
 })
 
 // --- METHODS ---
+// PERUBAHAN: Fungsi untuk mengambil data dari API
+const fetchVisiMisi = async () => {
+  isLoading.value = true
+  errorMessage.value = ''
+  
+  try {
+    const response = await api.get('/profile-descs')
+    const data = response.data.data
+
+    // Cari data visi dan misi
+    const visiData = data.find(item => item.jenis === 'visi');
+    const misiData = data.find(item => item.jenis === 'misi');
+
+    visiMisi.value = {
+      visi: { id: visiData ? visiData.id : null, deskripsi: visiData ? visiData.deskripsi : '' },
+      misi: { id: misiData ? misiData.id : null, deskripsi: misiData ? misiData.deskripsi : '' }
+    };
+
+  } catch (error) {
+    console.error('Error fetching profile:', error)
+    if (error.response && error.response.status === 401) {
+      errorMessage.value = 'Sesi Anda telah berakhir. Silakan login kembali.';
+      auth.handleLogout();
+    } else {
+      errorMessage.value = 'Gagal memuat data. Periksa konsol untuk detail.'
+    }
+  } finally {
+    isLoading.value = false
+  }
+}
+
 const openModal = (mode) => {
   modalMode.value = mode
-  // Salin data ke form untuk diedit atau dilihat
   formData.value = {
-    visiText: visiMisi.value.visiText,
-    misiText: visiMisi.value.misiText
+    visiText: visiMisi.value.visi.deskripsi,
+    misiText: visiMisi.value.misi.deskripsi
   }
   showModal.value = true
 }
@@ -112,14 +184,59 @@ const closeModal = () => {
   showModal.value = false
 }
 
-const handleSave = () => {
-  // Simpan perubahan dari form ke data utama
-  visiMisi.value.visiText = formData.value.visiText
-  visiMisi.value.misiText = formData.value.misiText
-  
-  alert('Visi & Misi berhasil diperbarui!')
-  closeModal()
+// PERUBAHAN: Fungsi save yang memperbarui dua record di backend
+const handleSave = async () => {
+  isLoading.value = true
+  errorMessage.value = ''
+
+  try {
+    const visiPayload = { deskripsi: formData.value.visiText };
+    const misiPayload = { deskripsi: formData.value.misiText };
+
+    // Buat array promise untuk update visi dan misi
+    const updatePromises = [];
+
+    if (visiMisi.value.visi.id) {
+      updatePromises.push(api.put(`/profile-descs/${visiMisi.value.visi.id}`, visiPayload));
+    } else {
+      // Jika tidak ada ID, buat baru
+      updatePromises.push(api.post('/profile-descs', { ...visiPayload, jenis: 'visi', judul: 'Visi' }));
+    }
+
+    if (visiMisi.value.misi.id) {
+      updatePromises.push(api.put(`/profile-descs/${visiMisi.value.misi.id}`, misiPayload));
+    } else {
+      // Jika tidak ada ID, buat baru
+      updatePromises.push(api.post('/profile-descs', { ...misiPayload, jenis: 'misi', judul: 'Misi' }));
+    }
+
+    await Promise.all(updatePromises);
+
+    alert('Visi & Misi berhasil diperbarui!');
+    closeModal();
+    await fetchVisiMisi(); // Ambil ulang data untuk memastikan tampilan terbaru
+
+  } catch (error) {
+    console.error('Error saving profile:', error)
+    if (error.response && error.response.status === 422) {
+      const errors = error.response.data
+      let errorMsg = 'Terjadi kesalahan validasi:\n'
+      for (const field in errors) {
+        errorMsg += `${errors[field].join(', ')}\n`
+      }
+      errorMessage.value = errorMsg
+    } else {
+      errorMessage.value = 'Gagal menyimpan. Periksa konsol untuk detail.'
+    }
+  } finally {
+    isLoading.value = false
+  }
 }
+
+// Load data saat komponen pertama kali dimuat
+onMounted(() => {
+  fetchVisiMisi()
+})
 </script>
 
 <style scoped>
@@ -141,6 +258,35 @@ const handleSave = () => {
   color: #2c3e50;
   margin: 0;
   font-size: 2rem;
+}
+
+/* --- PERUBAHAN: Style untuk loading indicator --- */
+.loading-indicator {
+  text-align: center;
+  padding: 2rem;
+  font-size: 1.2rem;
+  color: #007bce;
+}
+
+/* --- PERUBAHAN: Style untuk empty state --- */
+.empty-state {
+  text-align: center;
+  padding: 3rem 2rem;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+
+.empty-state i {
+  font-size: 4rem;
+  color: #ced4da;
+  margin-bottom: 1rem;
+}
+
+.empty-state p {
+  font-size: 1.2rem;
+  color: #6c757d;
+  margin: 0 0 2rem 0;
 }
 
 /* --- Content Display --- */
@@ -190,11 +336,16 @@ const handleSave = () => {
   gap: 0.5rem;
 }
 
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .btn-primary {
   background-color: #007bce;
   color: white;
 }
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background-color: #0056b3;
 }
 

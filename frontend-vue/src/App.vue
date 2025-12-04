@@ -72,10 +72,11 @@ const handleLogout = () => {
 
 // Cek status login saat aplikasi pertama kali dimuat
 onMounted(() => {
-  // Jika ada token, kita anggap user sudah login dan langsung arahkan ke admin
-  if (token.value) {
-    currentView.value = 'admin';
-  }
+  // HAPUS atau KOMENTARI blok kode ini
+  // if (token.value) {
+  //   currentView.value = 'admin';
+  // }
+  
   // Sembunyikan loading screen
   isLoading.value = false;
 });
