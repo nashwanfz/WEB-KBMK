@@ -1,14 +1,14 @@
 <script setup>
-import { ref } from 'vue';
+import { ref, onMounted, inject } from 'vue';
 import axios from 'axios';
 
 // Konfigurasi API
-const API_URL = 'http://localhost:8000/api'; // Sesuaikan dengan URL backend Anda
+const API_URL = 'http://localhost:8000/api';
 
 // Emit event ke App.vue
 const emit = defineEmits(['login-success', 'show-home']);
 
-// State untuk form
+// --- STATE UNTUK FORM ---
 const email = ref('');
 const password = ref('');
 const rememberMe = ref(false);
@@ -16,7 +16,16 @@ const errorMessage = ref('');
 const isLoading = ref(false);
 const showPassword = ref(false);
 
-// Fungsi untuk login
+// Cek apakah ada email yang tersimpan saat komponen dimuat (untuk fitur "Ingat Saya")
+onMounted(() => {
+  const rememberedUser = localStorage.getItem('rememberedUser');
+  if (rememberedUser) {
+    email.value = rememberedUser;
+    rememberMe.value = true;
+  }
+});
+
+// --- FUNGSI LOGIN ---
 const handleLogin = async () => {
   errorMessage.value = '';
   
@@ -28,12 +37,16 @@ const handleLogin = async () => {
   isLoading.value = true;
 
   try {
+    // Buat instance axios khusus untuk request login (belum butuh token)
     const api = axios.create({ baseURL: API_URL });
+    
     const response = await api.post('/login', {
       email: email.value,
       password: password.value
     });
 
+    // Backend mengembalikan { data: { token, user } }
+    // 'user' ini berisi seluruh data user, termasuk 'roles'
     const { token, user } = response.data.data;
     
     // Jika "Remember Me" dicentang, simpan email
@@ -43,27 +56,45 @@ const handleLogin = async () => {
       localStorage.removeItem('rememberedUser');
     }
 
-    // Emit event login-success dengan data user dan token
+    // Emit event login-success dengan data token dan user (lengkap dengan role)
     emit('login-success', { token, user });
 
   } catch (error) {
-    if (error.response && error.response.status === 401) {
-      errorMessage.value = 'Email atau password salah.';
+    console.error('Login error:', error);
+    
+    // Penanganan error yang lebih detail
+    if (error.response) {
+      const status = error.response.status;
+      if (status === 401) {
+        errorMessage.value = 'Email atau password salah.';
+      } else if (status === 422) {
+        // Error validasi dari server
+        const errors = error.response.data.errors;
+        let errorMsg = 'Terjadi kesalahan validasi:\n';
+        for (const field in errors) {
+          errorMsg += `${errors[field].join(', ')}\n`;
+        }
+        errorMessage.value = errorMsg;
+      } else {
+        errorMessage.value = error.response.data.message || `Terjadi kesalahan (${status}).`;
+      }
+    } else if (error.request) {
+      errorMessage.value = 'Tidak dapat terhubung ke server. Periksa koneksi internet Anda.';
     } else {
-      errorMessage.value = 'Terjadi kesalahan. Silakan coba lagi.';
+      errorMessage.value = `Terjadi kesalahan. Silakan coba lagi.`;
     }
   } finally {
     isLoading.value = false;
   }
 };
 
-// Fungsi untuk toggle visibility password
+// --- FUNGSI LAINNYA ---
 const togglePasswordVisibility = () => {
   showPassword.value = !showPassword.value;
 };
 </script>
 
-<!-- Template dan Style tetap sama seperti yang Anda berikan -->
+<!-- Template tidak berubah -->
 <template>
   <section class="login-section">
     <div class="login-card">
@@ -115,6 +146,7 @@ const togglePasswordVisibility = () => {
   </section>
 </template>
 
+<!-- Style tidak berubah -->
 <style scoped>
 /* ... Salin semua style CSS yang Anda berikan di sini ... */
 .login-section {

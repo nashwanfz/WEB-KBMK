@@ -2,7 +2,8 @@
   <div class="profil-container">
     <div class="page-header">
       <h1>Profil KBMK</h1>
-      <button class="btn btn-primary" @click="openModal('edit')">
+      <!-- Tombol Edit hanya muncul untuk Admin & Superadmin -->
+      <button v-if="auth.isAdmin" class="btn btn-primary" @click="openModal('edit')">
         <i class="fas fa-edit"></i> Edit Profil
       </button>
     </div>
@@ -12,29 +13,33 @@
       <i class="fas fa-spinner fa-spin"></i> Memuat data...
     </div>
 
-    <!-- Tampilkan konten hanya jika tidak loading -->
+    <!-- Tampilkan pesan error jika ada -->
+    <div v-else-if="errorMessage" class="error-message">
+      <i class="fas fa-exclamation-circle"></i> {{ errorMessage }}
+      <button class="btn btn-primary" @click="fetchProfil">Coba Lagi</button>
+    </div>
+
+    <!-- Tampilkan konten hanya jika tidak loading dan tidak ada error -->
     <div v-else class="profil-content">
-      <!-- PERUBAHAN: Tampilkan pesan jika data kosong -->
+      <!-- Tampilkan pesan jika data profil kosong -->
       <div v-if="isProfilEmpty" class="empty-state">
         <i class="fas fa-info-circle"></i>
-        <p>Deskripsi profil belum ditambahkan.</p>
-        <button class="btn btn-primary" @click="openModal('edit')">
-          <i class="fas fa-plus"></i> Tambah Deskripsi Sekarang
+        <p>Profil KBMK belum ditambahkan.</p>
+        <button v-if="auth.isAdmin" class="btn btn-primary" @click="openModal('edit')">
+          <i class="fas fa-plus"></i> Tambah Profil Sekarang
         </button>
       </div>
 
       <!-- Tampilkan data profil jika ada -->
       <div v-else>
-        <h2>{{ profil.namaOrganisasi }}</h2>
+        <h2>{{ profil.judul }}</h2>
         <div class="profil-description">
-          <p v-for="(paragraf, index) in profil.deskripsi" :key="index">
-            {{ paragraf }}
-          </p>
+          <p>{{ profil.deskripsi }}</p>
         </div>
       </div>
     </div>
 
-    <!-- Modal untuk Edit Profil -->
+    <!-- Modal untuk Edit/Tambah Profil -->
     <div v-if="showModal" class="modal-overlay" @click="closeModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
@@ -46,20 +51,32 @@
         <div class="modal-body">
           <form @submit.prevent="handleSave">
             <div class="form-group">
-              <label for="namaOrganisasi">Nama Organisasi</label>
-              <input type="text" id="namaOrganisasi" v-model="formData.namaOrganisasi" required />
+              <label for="judul">Nama Organisasi</label>
+              <input 
+                type="text" 
+                id="judul" 
+                v-model="formData.judul" 
+                :disabled="isSaving"
+                required 
+              />
             </div>
             <div class="form-group">
               <label for="deskripsi">Deskripsi Profil</label>
-              <textarea id="deskripsi" v-model="formData.deskripsiText" required rows="12"></textarea>
-              <p class="photo-hint">*Edit keseluruhan profil di sini. Pastikan format "Tentang Kami", "Visi", dan "Misi" terpisah dengan jelas.</p>
+              <textarea 
+                id="deskripsi" 
+                v-model="formData.deskripsi" 
+                :disabled="isSaving"
+                required 
+                rows="12"
+              ></textarea>
+              <p class="photo-hint">*Tuliskan deskripsi lengkap mengenai organisasi Anda di sini.</p>
             </div>
           </form>
         </div>
         <div class="modal-footer">
-          <button type="button" class="btn btn-secondary" @click="closeModal">Batal</button>
-          <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isLoading">
-            <span v-if="isLoading">
+          <button type="button" class="btn btn-secondary" @click="closeModal" :disabled="isSaving">Batal</button>
+          <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isSaving">
+            <span v-if="isSaving">
               <i class="fas fa-spinner fa-spin"></i> Menyimpan...
             </span>
             <span v-else>Simpan Perubahan</span>
@@ -72,170 +89,114 @@
 
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
-import axios from 'axios'
 
-// --- INJECT AUTH DAN KONFIGURASI AXIOS ---
+// --- PERUBAHAN 1: INJECT DATA DARI APP.VUE ---
 const auth = inject('auth');
-const API_URL = 'http://localhost:8000/api';
 
-const api = axios.create({
-  baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-});
-
-api.interceptors.request.use(config => {
-  if (auth.token.value) {
-    config.headers.Authorization = `Bearer ${auth.token.value}`;
-  }
-  return config;
-});
-
-// --- STATE ---
-const profil = ref({
-  namaOrganisasi: 'Keluarga Besar Mahasiswa Kristen (KBMK)',
-  deskripsi: [], // Akan diisi array paragraf
-  profileIds: {}
-})
+// --- STATE UNTUK PROFIL (Disederhanakan) ---
+const profil = ref({ id: null, judul: '', deskripsi: '' })
 const isLoading = ref(false)
 const errorMessage = ref('')
 const showModal = ref(false)
-const modalMode = ref('edit')
-const formData = ref({
-  namaOrganisasi: '',
-  deskripsiText: ''
-})
+const isSaving = ref(false)
+const formData = ref({ id: null, judul: '', deskripsi: '' })
 
 // --- COMPUTED ---
 const modalTitle = computed(() => {
-  return modalMode.value === 'edit' ? 'Edit Profil KBMK' : 'Profil KBMK'
+  // Judul modal dinamis berdasarkan apakah data sudah ada atau belum
+  return profil.value.id ? 'Edit Profil KBMK' : 'Tambah Profil KBMK'
 })
 
 // PERUBAHAN: Computed property untuk mengecek apakah profil kosong
 const isProfilEmpty = computed(() => {
-  // Profil dianggap kosong jika array deskripsi kosong
-  return profil.value.deskripsi.length === 0;
+  // Profil dianggap kosong jika tidak ada judul atau deskripsi
+  return !profil.value.judul && !profil.value.deskripsi;
 })
 
 // --- METHODS ---
-const fetchProfil = async () => {
-  isLoading.value = true
-  errorMessage.value = ''
-  
-  try {
-    const response = await api.get('/profile-descs')
-    const data = response.data.data
-
-    let namaOrg = 'Keluarga Besar Mahasiswa Kristen (KBMK)';
-    let deskripsiGabung = [];
-    const ids = {};
-
-    // Urutkan data agar konsisten (about, visi, misi)
-    const orderedData = ['about', 'visi', 'misi'].map(jenis => 
-      data.find(item => item.jenis === jenis)
-    ).filter(Boolean);
-
-    orderedData.forEach(item => {
-      ids[item.jenis] = item.id;
-      if (item.jenis === 'about') {
-        namaOrg = item.judul || namaOrg;
-      }
-      const paragraf = item.deskripsi.split(/\n\s*\n/).filter(p => p.trim() !== '');
-      deskripsiGabung = deskripsiGabung.concat(paragraf);
-    });
-
-    profil.value = {
-      namaOrganisasi: namaOrg,
-      deskripsi: deskripsiGabung,
-      profileIds: ids
-    };
-
-  } catch (error) {
-    console.error('Error fetching profile:', error)
-    if (error.response && error.response.status === 401) {
-      errorMessage.value = 'Sesi Anda telah berakhir. Silakan login kembali.';
-      auth.handleLogout();
-    } else {
-      errorMessage.value = 'Gagal memuat data profil. Periksa konsol untuk detail.'
-    }
-  } finally {
-    isLoading.value = false
-  }
-}
-
 const openModal = (mode) => {
-  modalMode.value = mode
-  // Jika data kosong, beri teks awal yang membantu
-  const initialText = isProfilEmpty.value 
-    ? "Tentang Kami:\n\nVisi:\n\nMisi:"
-    : profil.value.deskripsi.join('\n\n');
-
-  formData.value = {
-    namaOrganisasi: profil.value.namaOrganisasi,
-    deskripsiText: initialText
-  }
-  showModal.value = true
+  // Salin data profil ke form untuk diedit
+  formData.value = { ...profil.value };
+  showModal.value = true;
 }
 
 const closeModal = () => {
-  showModal.value = false
+  showModal.value = false;
+  errorMessage.value = '';
+}
+
+// --- API METHODS (MENGGUNAKAN auth.api) ---
+const fetchProfil = async () => {
+  isLoading.value = true;
+  errorMessage.value = '';
+  
+  try {
+    // PERUBAHAN 2: Gunakan auth.api yang sudah dikonfigurasi
+    const response = await auth.api.get('/profile-descs');
+    const allProfiles = response.data.data;
+
+    // Cari data profil yang jenisnya 'about'
+    const aboutProfile = allProfiles.find(item => item.jenis === 'about');
+
+    if (aboutProfile) {
+      profil.value = aboutProfile;
+    } else {
+      // Jika tidak ada, kosongkan state
+      profil.value = { id: null, judul: '', deskripsi: '' };
+    }
+  } catch (err) {
+    console.error('Error fetching profile:', err);
+    errorMessage.value = err.response?.data?.message || 'Gagal memuat data profil. Silakan coba lagi.';
+  } finally {
+    isLoading.value = false;
+  }
 }
 
 const handleSave = async () => {
-  isLoading.value = true
-  errorMessage.value = ''
+  isSaving.value = true;
+  errorMessage.value = '';
 
   try {
-    const textBlocks = formData.value.deskripsiText.split(/\n\s*\n/);
-    
-    const updates = [
-      { jenis: 'about', deskripsi: textBlocks[0] || '', judul: formData.value.namaOrganisasi },
-      { jenis: 'visi', deskripsi: textBlocks[1] || '' },
-      { jenis: 'misi', deskripsi: textBlocks[2] || '' }
-    ];
+    const payload = {
+      judul: formData.value.judul,
+      deskripsi: formData.value.deskripsi,
+      jenis: 'about' // PERUBAHAN 3: Selalu kirim jenis 'about'
+    };
 
-    const updatePromises = updates.map(update => {
-      const id = profil.value.profileIds[update.jenis];
-      
-      // Jika ID tidak ada (data baru), buat baru dengan POST
-      if (!id) {
-        const payload = { ...update };
-        return api.post('/profile-descs', payload);
-      }
-      
-      // Jika ID ada, update dengan PUT
-      const payload = { deskripsi: update.deskripsi };
-      if (update.jenis === 'about') {
-        payload.judul = update.judul;
-      }
-      return api.put(`/profile-descs/${id}`, payload);
-    });
-
-    await Promise.all(updatePromises);
-
-    alert('Profil KBMK berhasil diperbarui!');
-    closeModal();
-    await fetchProfil(); // Ambil ulang data untuk memastikan tampilan terbaru
-
-  } catch (error) {
-    console.error('Error saving profile:', error)
-    if (error.response && error.response.status === 422) {
-      const errors = error.response.data
-      let errorMsg = 'Terjadi kesalahan validasi:\n'
-      for (const field in errors) {
-        errorMsg += `${errors[field].join(', ')}\n`
-      }
-      errorMessage.value = errorMsg
+    let response;
+    if (profil.value.id) {
+      // Jika ID ada, lakukan update (PUT)
+      response = await auth.api.put(`/profile-descs/${profil.value.id}`, payload);
     } else {
-      errorMessage.value = 'Gagal menyimpan profil. Periksa konsol untuk detail.'
+      // Jika tidak ada ID, lakukan create baru (POST)
+      response = await auth.api.post('/profile-descs', payload);
+    }
+
+    // Update state dengan data terbaru dari server
+    profil.value = response.data.data;
+    
+    closeModal();
+    alert('Profil KBMK berhasil disimpan!');
+  } catch (err) {
+    console.error('Error saving profile:', err);
+    if (err.response?.status === 422 && err.response.data.errors) {
+      const errors = err.response.data.errors;
+      let errorMsg = 'Terjadi kesalahan validasi:\n';
+      for (const field in errors) {
+        errorMsg += `${errors[field].join(', ')}\n`;
+      }
+      errorMessage.value = errorMsg;
+    } else {
+      errorMessage.value = err.response?.data?.message || 'Gagal menyimpan profil. Periksa izin Anda.';
     }
   } finally {
-    isLoading.value = false
+    isSaving.value = false;
   }
 }
 
 // Load data saat komponen pertama kali dimuat
 onMounted(() => {
-  fetchProfil()
+  fetchProfil();
 })
 </script>
 
@@ -260,15 +221,27 @@ onMounted(() => {
   font-size: 2rem;
 }
 
-/* --- Loading Indicator --- */
-.loading-indicator {
+/* --- Loading and Error States --- */
+.loading-indicator, .error-message {
   text-align: center;
   padding: 2rem;
   font-size: 1.2rem;
   color: #007bce;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 1.5rem;
 }
 
-/* --- PERUBAHAN: Style untuk empty state --- */
+.error-message {
+  color: #F44336;
+}
+
+.error-message i {
+  margin-right: 0.5rem;
+}
+
+/* --- Empty State --- */
 .empty-state {
   text-align: center;
   padding: 3rem 2rem;
@@ -310,11 +283,7 @@ onMounted(() => {
   line-height: 1.7;
   font-size: 1rem;
   text-align: justify;
-  margin-bottom: 1rem;
-}
-
-.profil-description p:last-child {
-  margin-bottom: 0;
+  white-space: pre-wrap; /* Menjaga format paragraf dari textarea */
 }
 
 /* --- Buttons --- */
@@ -347,7 +316,7 @@ onMounted(() => {
   background-color: #6c757d;
   color: white;
 }
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background-color: #5a6268;
 }
 
@@ -420,6 +389,18 @@ onMounted(() => {
   font-size: 1rem;
   font-family: inherit;
   resize: vertical;
+  box-sizing: border-box;
+}
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #007bce;
+  box-shadow: 0 0 0 3px rgba(0, 123, 206, 0.25);
+}
+.form-group input:disabled,
+.form-group textarea:disabled {
+  background-color: #f8f9fa;
+  cursor: not-allowed;
 }
 .photo-hint {
   font-size: 0.8rem;

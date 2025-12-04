@@ -14,6 +14,7 @@ use App\Http\Controllers\Api\LinkController;
 // API Routes - Public
 Route::post('/register', [AuthController::class, 'register']);
 Route::post('/login', [AuthController::class, 'login']);
+Route::get('/divisions', [PengurusController::class, 'divisions']);
 
 // Route untuk melihat data (bisa diakses siapa saja)
 Route::get('/documentations', [DocumentationController::class, 'index']);
@@ -32,7 +33,7 @@ Route::get('/links/{id}', [LinkController::class, 'show']);
 // Guest mengajukan surat
 Route::post('/surat-requests', [SuratRequestController::class, 'store']);
 
-Route::get('/divisions', [PengurusController::class, 'divisions']);
+
 
 // API Routes - Protected (Membutuhkan Login)
 Route::middleware('auth:sanctum')->group(function () {

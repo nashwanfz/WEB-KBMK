@@ -1,8 +1,18 @@
 <template>
   <div class="kelola-kegiatan-container">
+    <!-- Notifikasi Sederhana -->
+    <div v-if="notification.show" :class="['notification', notification.type]">
+      <i :class="notification.icon"></i>
+      <span>{{ notification.message }}</span>
+      <button class="notification-close" @click="hideNotification">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
     <div class="page-header">
       <h1>Kelola Kegiatan</h1>
-      <button class="btn btn-primary" @click="openModal('create')">
+      <!-- PERUBAHAN: Tombol Tambah hanya untuk Admin & Koor Media -->
+      <button v-if="auth.isAdmin || auth.isKoorMedia" class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
         <i class="fas fa-plus"></i> Tambah Kegiatan Baru
       </button>
     </div>
@@ -12,13 +22,15 @@
       <i class="fas fa-search"></i>
     </div>
 
-    <!-- PERUBAHAN 1: Ganti struktur loading dan tabel -->
-    <!-- Tampilkan indikator loading di luar tabel -->
     <div v-if="isLoading" class="loading-indicator">
       <i class="fas fa-spinner fa-spin"></i> Memuat data...
     </div>
 
-    <!-- Tampilkan tabel jika TIDAK loading -->
+    <div v-else-if="errorMessage" class="error-message">
+      <i class="fas fa-exclamation-circle"></i> {{ errorMessage }}
+      <button class="btn btn-primary" @click="fetchKegiatan">Coba Lagi</button>
+    </div>
+
     <div v-else class="table-wrapper">
       <table class="data-table">
         <thead>
@@ -30,26 +42,24 @@
           </tr>
         </thead>
         <tbody>
-          <!-- PERUBAHAN 2: Hapus baris loading lama dari dalam tbody -->
-          <!-- Tampilkan pesan jika tidak ada data -->
           <tr v-if="filteredKegiatan.length === 0">
             <td colspan="4" class="text-center">Tidak ada kegiatan.</td>
           </tr>
-          <!-- Tampilkan data kegiatan -->
           <tr v-for="kegiatan in filteredKegiatan" :key="kegiatan.id">
             <td>
-              <img :src="kegiatan.foto_url || getDefaultPhoto()" alt="Foto Kegiatan" class="kegiatan-photo" />
+              <img :src="getPhotoUrl(kegiatan.foto_url)" alt="Foto Kegiatan" class="kegiatan-photo" />
             </td>
             <td>{{ kegiatan.nama }}</td>
             <td>{{ kegiatan.deskripsi }}</td>
             <td class="action-buttons">
-              <button class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
+              <!-- PERUBAHAN: Tombol Edit & Hapus hanya untuk Admin & Koor Media -->
+              <button v-if="auth.isAdmin || auth.isKoorMedia" class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
                 <i class="fas fa-eye"></i>
               </button>
-              <button class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
+              <button v-if="auth.isAdmin || auth.isKoorMedia" class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
                 <i class="fas fa-edit"></i>
               </button>
-              <button class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus">
+              <button v-if="auth.isAdmin || auth.isKoorMedia" class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus" :disabled="isDeleting">
                 <i class="fas fa-trash"></i>
               </button>
             </td>
@@ -71,32 +81,36 @@
           <form @submit.prevent="handleSave">
             <div class="form-group">
               <label for="nama">Nama Kegiatan</label>
-              <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view'" required />
+              <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view' || isSaving" required />
             </div>
             <div class="form-group">
               <label for="deskripsi">Deskripsi</label>
-              <textarea id="deskripsi" v-model="formData.deskripsi" :disabled="modalMode === 'view'" required rows="4"></textarea>
+              <textarea id="deskripsi" v-model="formData.deskripsi" :disabled="modalMode === 'view' || isSaving" rows="4" required></textarea>
             </div>
             <div class="form-group" v-if="modalMode !== 'view'">
               <label for="foto">Foto Kegiatan</label>
               <input type="file" id="foto" @change="handlePhotoUpload" accept="image/*" />
-              <p class="photo-hint">*Upload foto untuk mengganti. Kosongkan jika tidak ingin mengubah.</p>
+              <p class="photo-hint">*Pilih file gambar untuk foto kegiatan.</p>
             </div>
+            <!-- Tampilkan foto saat ini di mode view/edit -->
             <div class="form-group" v-if="modalMode === 'view' && formData.foto_url">
               <label>Foto Saat Ini</label>
-              <img :src="formData.foto_url" alt="Foto Kegiatan" class="current-photo" />
+              <img :src="getPhotoUrl(formData.foto_url)" alt="Foto Kegiatan" class="current-photo" />
+            </div>
+             <!-- Tampilkan preview foto baru di mode edit jika ada -->
+            <div class="form-group" v-if="modalMode === 'edit' && formData.foto_url && formData.foto_url.startsWith('data:')">
+              <label>Preview Foto Baru</label>
+              <img :src="formData.foto_url" alt="Preview Foto Baru" class="current-photo" />
             </div>
           </form>
         </div>
         <div class="modal-footer">
           <button v-if="modalMode === 'view'" class="btn btn-secondary" @click="closeModal">Tutup</button>
           <template v-else>
-            <button type="button" class="btn btn-secondary" @click="closeModal">Batal</button>
-            <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isLoading">
-              <span v-if="isLoading">
-                <i class="fas fa-spinner fa-spin"></i> Menyimpan...
-              </span>
-              <span v-else>Simpan</span>
+            <button type="button" class="btn btn-secondary" @click="closeModal" :disabled="isSaving">Batal</button>
+            <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isSaving">
+              <i v-if="isSaving" class="fas fa-spinner fa-spin"></i>
+              {{ isSaving ? 'Menyimpan...' : 'Simpan' }}
             </button>
           </template>
         </div>
@@ -106,25 +120,12 @@
 </template>
 
 <script setup>
-// ... (Bagian script tidak berubah, sudah benar)
 import { ref, computed, onMounted, inject } from 'vue'
-import axios from 'axios'
 
+// --- INTEGRASI API ---
 const auth = inject('auth');
-const API_URL = 'http://localhost:8000/api'; 
 
-const api = axios.create({
-  baseURL: API_URL,
-  headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' }
-});
-
-api.interceptors.request.use(config => {
-  if (auth.token.value) {
-    config.headers.Authorization = `Bearer ${auth.token.value}`;
-  }
-  return config;
-});
-
+// --- STATE ---
 const kegiatanList = ref([])
 const searchQuery = ref('')
 const showModal = ref(false)
@@ -137,8 +138,14 @@ const formData = ref({
   foto_url: null
 })
 const isLoading = ref(false)
+const isSaving = ref(false)
+const isDeleting = ref(false)
 const errorMessage = ref('')
 
+// State untuk notifikasi
+const notification = ref({ show: false, message: '', type: 'success', icon: 'fas fa-check-circle' })
+
+// --- COMPUTED ---
 const filteredKegiatan = computed(() => {
   if (!searchQuery.value) {
     return kegiatanList.value
@@ -158,28 +165,29 @@ const modalTitle = computed(() => {
   }
 })
 
-const getDefaultPhoto = () => {
-  return 'https://picsum.photos/id/99/800/600'
+// --- METHODS ---
+const showNotification = (message, type = 'success') => {
+  notification.value = {
+    show: true,
+    message,
+    type,
+    icon: type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
+  }
+  setTimeout(hideNotification, 5000)
 }
 
-const fetchKegiatan = async () => {
-  isLoading.value = true
-  errorMessage.value = ''
-  
-  try {
-    const response = await api.get('/documentations')
-    kegiatanList.value = response.data.data
-  } catch (error) {
-    console.error('Error fetching documentations:', error)
-    if (error.response && error.response.status === 401) {
-      errorMessage.value = 'Sesi Anda telah berakhir. Silakan login kembali.';
-      auth.handleLogout();
-    } else {
-      errorMessage.value = 'Gagal memuat data. Periksa konsol untuk detail.'
-    }
-  } finally {
-    isLoading.value = false
+const hideNotification = () => {
+  notification.value.show = false
+}
+
+const getPhotoUrl = (foto) => {
+  if (!foto) {
+    return 'https://picsum.photos/id/99/800/600'; // Default foto jika tidak ada
   }
+  if (foto.startsWith('http')) {
+    return foto;
+  }
+  return `http://localhost:8000${foto}`;
 }
 
 const openModal = (mode, kegiatan = null) => {
@@ -198,70 +206,90 @@ const closeModal = () => {
   errorMessage.value = ''
 }
 
-const handleSave = async () => {
+// --- API METHODS ---
+const fetchKegiatan = async () => {
   isLoading.value = true
   errorMessage.value = ''
   
   try {
-    const dataPayload = new FormData();
-    dataPayload.append('nama', formData.value.nama);
-    dataPayload.append('deskripsi', formData.value.deskripsi);
-    
-    if (formData.value.foto) {
-      dataPayload.append('foto', formData.value.foto);
-    }
-
-    let response
-    if (modalMode.value === 'create') {
-      response = await api.post('/documentations', dataPayload)
-      kegiatanList.value.push(response.data.data)
-      alert(response.data.message)
-    } else if (modalMode.value === 'edit') {
-      dataPayload.append('_method', 'PUT');
-      response = await api.post(`/documentations/${formData.value.id}`, dataPayload)
-      
-      const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
-      if (index !== -1) {
-        kegiatanList.value[index] = response.data.data
-      }
-      alert(response.data.message)
-    }
-    closeModal()
-  } catch (error) {
-    console.error('Error saving documentation:', error)
-    if (error.response && error.response.status === 422) {
-      const errors = error.response.data
-      let errorMsg = 'Terjadi kesalahan validasi:\n'
-      for (const field in errors) {
-        errorMsg += `${errors[field].join(', ')}\n`
-      }
-      errorMessage.value = errorMsg
-    } else {
-      errorMessage.value = 'Gagal menyimpan kegiatan. Periksa konsol untuk detail.'
-    }
+    const response = await auth.api.get('/documentations')
+    kegiatanList.value = response.data.data
+  } catch (err) {
+    console.error('Error fetching documentations:', err)
+    errorMessage.value = err.response?.data?.message || 'Gagal memuat data. Periksa izin Anda.'
   } finally {
     isLoading.value = false
   }
 }
 
-const handleDelete = async (kegiatan) => {
-  if (confirm(`Apakah Anda yakin ingin menghapus "${kegiatan.nama}"?`)) {
-    isLoading.value = true
-    errorMessage.value = ''
-    
-    try {
-      const response = await api.delete(`/documentations/${kegiatan.id}`)
-      const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
-      if (index !== -1) {
-        kegiatanList.value.splice(index, 1)
-      }
-      alert(response.data.message)
-    } catch (error) {
-      console.error('Error deleting documentation:', error)
-      errorMessage.value = 'Gagal menghapus kegiatan. Periksa konsol untuk detail.'
-    } finally {
-      isLoading.value = false
+const handleSave = async () => {
+  isSaving.value = true
+  errorMessage.value = ''
+  
+  try {
+    const payload = new FormData();
+    payload.append('nama', formData.value.nama);
+    payload.append('deskripsi', formData.value.deskripsi);
+    if (formData.value.foto) {
+      payload.append('foto', formData.value.foto);
     }
+
+    let response
+    if (modalMode.value === 'create') {
+      response = await auth.api.post('/documentations', payload, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      kegiatanList.value.push(response.data.data)
+      showNotification('Kegiatan berhasil ditambahkan!', 'success')
+    } else if (modalMode.value === 'edit') {
+      const dataToUpdate = new FormData();
+      dataToUpdate.append('_method', 'PUT');
+      dataToUpdate.append('nama', formData.value.nama);
+      dataToUpdate.append('deskripsi', formData.value.deskripsi);
+      if (formData.value.foto instanceof File) {
+        dataToUpdate.append('foto', formData.value.foto);
+      }
+
+      response = await auth.api.post(`/documentations/${formData.value.id}`, dataToUpdate, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      })
+      const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
+      if (index !== -1) {
+        kegiatanList.value[index] = response.data.data
+      }
+      showNotification('Kegiatan berhasil diperbarui!', 'success')
+    }
+    
+    closeModal()
+  } catch (error) {
+    console.error('Error saving documentation:', error)
+    if (error.response?.status === 422 && error.response.data.errors) {
+      validationErrors.value = error.response.data.errors
+    } else {
+      showNotification(error.response?.data?.message || 'Gagal menyimpan kegiatan. Periksa izin Anda.', 'error')
+    }
+  } finally {
+    isSaving.value = false
+  }
+}
+
+const handleDelete = async (kegiatan) => {
+  if (!confirm(`Apakah Anda yakin ingin menghapus "${kegiatan.nama}"?`)) {
+    return
+  }
+  isDeleting.value = true
+  try {
+    await auth.api.delete(`/documentations/${kegiatan.id}`)
+    const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
+    if (index !== -1) {
+      kegiatanList.value.splice(index, 1)
+    }
+    showNotification('Kegiatan berhasil dihapus.', 'success')
+  } catch (err) {
+    console.error('Error deleting documentation:', err)
+    showNotification(err.response?.data?.message || 'Gagal menghapus kegiatan. Periksa izin Anda.', 'error')
+  } finally {
+    isDeleting.value = false
   }
 }
 
@@ -269,9 +297,15 @@ const handlePhotoUpload = (event) => {
   const file = event.target.files[0]
   if (file) {
     formData.value.foto = file
+    const reader = new FileReader()
+    reader.onload = (e) => {
+      formData.value.foto_url = e.target.result
+    }
+    reader.readAsDataURL(file)
   }
 }
 
+// --- LIFECYCLE ---
 onMounted(() => {
   fetchKegiatan()
 })
@@ -298,12 +332,67 @@ onMounted(() => {
   font-size: 2rem;
 }
 
-/* --- PERUBAHAN 3: Tambahkan style untuk loading indicator --- */
-.loading-indicator {
+/* --- Notification --- */
+.notification {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification.success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border-left: 5px solid #4caf50;
+}
+
+.notification.error {
+  background-color: #fde8e8;
+  color: #c62828;
+  border-left: 5px solid #f44336;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  margin-left: auto;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.notification-close:hover { opacity: 1; }
+
+@keyframes slideIn {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* --- Loading and Error States --- */
+.loading-indicator, .error-message {
   text-align: center;
   padding: 2rem;
   font-size: 1.2rem;
-  color: #007bce; /* Warna biru sesuai permintaan */
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  margin-bottom: 1.5rem;
+}
+
+.loading-indicator {
+  color: #007bce;
+}
+
+.error-message {
+  color: #F44336;
+}
+
+.error-message i {
+  margin-right: 0.5rem;
 }
 
 /* --- Search Bar --- */
@@ -312,15 +401,15 @@ onMounted(() => {
   margin-bottom: 1.5rem;
   max-width: 400px;
 }
-
 .search-bar input {
   width: 100%;
   padding: 0.75rem 1rem 0.75rem 2.5rem;
   border: 1px solid #ddd;
   border-radius: 8px;
   font-size: 1rem;
+  transition: border-color 0.2s;
 }
-
+.search-bar input:focus { outline: none; border-color: #007bce; }
 .search-bar i {
   position: absolute;
   left: 1rem;
@@ -336,12 +425,10 @@ onMounted(() => {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   overflow-x: auto;
 }
-
 .data-table {
   width: 100%;
   border-collapse: collapse;
 }
-
 .data-table th {
   background-color: #f8f9fa;
   padding: 1rem;
@@ -350,18 +437,14 @@ onMounted(() => {
   color: #495057;
   border-bottom: 2px solid #dee2e6;
 }
-
 .data-table td {
   padding: 1rem;
   border-bottom: 1px solid #eee;
   vertical-align: middle;
 }
-
 .text-center {
   text-align: center;
 }
-
-/* Style khusus untuk foto kegiatan (persegi panjang) */
 .kegiatan-photo {
   width: 100px;
   height: 70px;
@@ -369,7 +452,6 @@ onMounted(() => {
   object-fit: cover;
   border: 1px solid #e9ecef;
 }
-
 .action-buttons {
   display: flex;
   gap: 0.5rem;
@@ -387,12 +469,10 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
 }
-
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-
 .btn-primary {
   background-color: #007bce;
   color: white;
@@ -400,12 +480,11 @@ onMounted(() => {
 .btn-primary:hover:not(:disabled) {
   background-color: #0056b3;
 }
-
 .btn-secondary {
   background-color: #6c757d;
   color: white;
 }
-.btn-secondary:hover {
+.btn-secondary:hover:not(:disabled) {
   background-color: #5a6268;
 }
 
@@ -422,30 +501,28 @@ onMounted(() => {
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   font-size: 1rem;
 }
-
+.btn-icon:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-view { 
   background-color: #2196F3; 
   color: white; 
 }
-.btn-view:hover { 
+.btn-view:hover:not(:disabled) { 
   background-color: #0d8aee; 
   transform: scale(1.1); 
 }
-
 .btn-edit { 
   background-color: #FF9800; 
   color: white; 
 }
-.btn-edit:hover { 
+.btn-edit:hover:not(:disabled) { 
   background-color: #e68900; 
   transform: scale(1.1); 
 }
-
 .btn-delete { 
   background-color: #F44336; 
   color: white; 
 }
-.btn-delete:hover { 
+.btn-delete:hover:not(:disabled) { 
   background-color: #d32f2f; 
   transform: scale(1.1); 
 }
@@ -463,7 +540,6 @@ onMounted(() => {
   justify-content: center;
   z-index: 1000;
 }
-
 .modal-content {
   background-color: white;
   border-radius: 12px;
@@ -473,12 +549,10 @@ onMounted(() => {
   overflow-y: auto;
   animation: fadeIn 0.3s ease;
 }
-
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.9); }
   to { opacity: 1; transform: scale(1); }
 }
-
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -497,7 +571,6 @@ onMounted(() => {
   cursor: pointer;
   color: #aaa;
 }
-
 .modal-body {
   padding: 1.5rem;
 }
@@ -511,14 +584,21 @@ onMounted(() => {
   color: #495057;
 }
 .form-group input[type="text"],
-.form-group input[type="file"],
 .form-group textarea {
   width: 100%;
   padding: 0.75rem;
   border: 1px solid #ced4da;
   border-radius: 8px;
   font-size: 1rem;
+  font-family: inherit;
+  resize: vertical;
   box-sizing: border-box;
+}
+.form-group input:focus,
+.form-group textarea:focus {
+  outline: none;
+  border-color: #007bce;
+  box-shadow: 0 0 0 3px rgba(0, 123, 206, 0.25);
 }
 .form-group input:disabled,
 .form-group textarea:disabled {
@@ -539,7 +619,6 @@ onMounted(() => {
   margin-top: 0.5rem;
   border: 1px solid #ddd;
 }
-
 .modal-footer {
   display: flex;
   justify-content: flex-end;

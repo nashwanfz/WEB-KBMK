@@ -71,7 +71,8 @@
                 <i class="fas fa-tachometer-alt"></i> Dashboard Admin
               </a>
               <div class="dropdown-divider"></div>
-              <a href="#" @click.prevent="handleLogout" class="logout-link">
+              <!-- Tombol logout yang sudah diperbaiki -->
+              <a href="#" @click.prevent="handleLogoutClick" class="logout-link">
                 <i class="fas fa-sign-out-alt"></i> Logout
               </a>
             </div>
@@ -87,7 +88,7 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, inject } from 'vue' // TAMBAHKAN INJECT
+import { ref, shallowRef, inject } from 'vue'
 import logoOrganisasi from '@/assets/logo.png'
 
 // --- IMPORT SEMUA KOMPONEN HALAMAN ---
@@ -107,8 +108,9 @@ const dropdownOpen = ref(false)
 // shallowRef menyimpan definisi komponen yang sedang aktif.
 const activeComponent = shallowRef(SuperAdminDashboard)
 
-// --- TAMBAHKAN FUNGSI LOGOUT ---
-const handleLogout = inject('logout');
+// --- PERUBAHAN: INJECT SELURUH OBJEK 'auth' ---
+// Ini memungkinkan kita untuk mengakses fungsi logout yang ada di dalamnya.
+const auth = inject('auth');
 
 const toggleSidebar = () => (isCollapsed.value = !isCollapsed.value)
 const toggleDropdown = () => (dropdownOpen.value = !dropdownOpen.value)
@@ -116,12 +118,19 @@ const toggleDropdown = () => (dropdownOpen.value = !dropdownOpen.value)
 const navigateTo = (component) => {
   activeComponent.value = component
 }
+
+// --- FUNGSI LOGOUT YANG BENAR DAN AMAN ---
+const handleLogoutClick = () => {
+  // Tampilkan dialog konfirmasi sebelum melakukan logout
+  if (confirm('Apakah Anda yakin ingin keluar?')) {
+    // Panggil fungsi logout dari objek 'auth' yang di-inject dari App.vue
+    auth.logout();
+  }
+}
 </script>
 
 <style>
-/* ... (style Anda yang lain tetap sama) ... */
-
-/* --- GANTI BAGIAN STYLE UNTUK DROPDOWN --- */
+/* --- Style untuk Dropdown --- */
 .navbar-right {
   position: relative;
 }
@@ -225,6 +234,7 @@ const navigateTo = (component) => {
   color: #721c24;
 }
 
+/* --- Style Utama Layout --- */
 html,
 body {
   margin: 0;
@@ -380,44 +390,6 @@ body {
 .menu-toggle:hover {
   background: rgba(255, 255, 255, 0.15);
   transform: scale(1.1);
-}
-
-.navbar-right {
-  position: relative;
-}
-
-.dropdown-toggle {
-  background: transparent;
-  border: none;
-  color: white;
-  cursor: pointer;
-  font-size: 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.dropdown-menu {
-  position: absolute;
-  right: 0;
-  top: 120%;
-  background: white;
-  border-radius: 6px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-}
-
-.dropdown-menu a {
-  color: #333;
-  text-decoration: none;
-  padding: 0.7rem 1.2rem;
-  transition: background 0.3s;
-}
-
-.dropdown-menu a:hover {
-  background: #f0f0f0;
 }
 
 /* === AREA KONTEN === */

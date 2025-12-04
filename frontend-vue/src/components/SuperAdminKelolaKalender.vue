@@ -1,15 +1,20 @@
 <template>
   <div class="kelola-kalender-container">
-    <div class="page-header">
-      <h1>Kelola Kalender Kegiatan</h1>
-      <button class="btn btn-primary" @click="openModal('create')">
-        <i class="fas fa-plus"></i> Tambah Jadwal Baru
+    <!-- Notifikasi Sederhana -->
+    <div v-if="notification.show" :class="['notification', notification.type]">
+      <i :class="notification.icon"></i>
+      <span>{{ notification.message }}</span>
+      <button class="notification-close" @click="hideNotification">
+        <i class="fas fa-times"></i>
       </button>
     </div>
 
-    <!-- Tampilkan pesan error jika ada -->
-    <div v-if="errorMessage" class="alert alert-danger">
-      {{ errorMessage }}
+    <div class="page-header">
+      <h1>Kelola Kalender Kegiatan</h1>
+      <!-- PERUBAHAN: Tombol Tambah hanya untuk Superadmin -->
+      <button v-if="auth.isSuperAdmin" class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
+        <i class="fas fa-plus"></i> Tambah Jadwal Baru
+      </button>
     </div>
 
     <div class="search-bar">
@@ -17,7 +22,6 @@
       <i class="fas fa-search"></i>
     </div>
 
-    <!-- PERUBAHAN 1: Ganti struktur loading dan tabel -->
     <!-- Tampilkan indikator loading di luar tabel -->
     <div v-if="isLoading" class="loading-indicator">
       <i class="fas fa-spinner fa-spin"></i> Memuat data...
@@ -35,7 +39,6 @@
           </tr>
         </thead>
         <tbody>
-          <!-- PERUBAHAN 2: Hapus baris loading lama dari dalam tbody -->
           <!-- Tampilkan pesan jika tidak ada data -->
           <tr v-if="filteredKegiatan.length === 0">
             <td colspan="4" class="text-center">Tidak ada jadwal kegiatan.</td>
@@ -46,13 +49,14 @@
             <td>{{ formatDate(kegiatan.tanggal) }}</td>
             <td>{{ kegiatan.deskripsi }}</td>
             <td class="action-buttons">
-              <button class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
+              <!-- PERUBAHAN: Tombol Edit & Hapus hanya untuk Superadmin -->
+              <button v-if="auth.isSuperAdmin" class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
                 <i class="fas fa-eye"></i>
               </button>
-              <button class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
+              <button v-if="auth.isSuperAdmin" class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
                 <i class="fas fa-edit"></i>
               </button>
-              <button class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus">
+              <button v-if="auth.isSuperAdmin" class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus" :disabled="isDeleting">
                 <i class="fas fa-trash"></i>
               </button>
             </td>
@@ -74,27 +78,25 @@
           <form @submit.prevent="handleSave">
             <div class="form-group">
               <label for="nama">Nama Kegiatan</label>
-              <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view'" required />
+              <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view' || isSaving" required />
             </div>
             <div class="form-group">
               <label for="tanggal">Tanggal</label>
-              <input type="date" id="tanggal" v-model="formData.tanggal" :disabled="modalMode === 'view'" required />
+              <input type="date" id="tanggal" v-model="formData.tanggal" :disabled="modalMode === 'view' || isSaving" required />
             </div>
             <div class="form-group">
               <label for="deskripsi">Deskripsi</label>
-              <textarea id="deskripsi" v-model="formData.deskripsi" :disabled="modalMode === 'view'" rows="4" required></textarea>
+              <textarea id="deskripsi" v-model="formData.deskripsi" :disabled="modalMode === 'view' || isSaving" rows="4" required></textarea>
             </div>
           </form>
         </div>
         <div class="modal-footer">
           <button v-if="modalMode === 'view'" class="btn btn-secondary" @click="closeModal">Tutup</button>
           <template v-else>
-            <button type="button" class="btn btn-secondary" @click="closeModal">Batal</button>
-            <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isLoading">
-              <span v-if="isLoading">
-                <i class="fas fa-spinner fa-spin"></i> Menyimpan...
-              </span>
-              <span v-else>Simpan</span>
+            <button type="button" class="btn btn-secondary" @click="closeModal" :disabled="isSaving">Batal</button>
+            <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isSaving">
+              <i v-if="isSaving" class="fas fa-spinner fa-spin"></i>
+              {{ isSaving ? 'Menyimpan...' : 'Simpan' }}
             </button>
           </template>
         </div>
@@ -104,37 +106,10 @@
 </template>
 
 <script setup>
-// ... (Bagian script tidak berubah, sudah benar)
 import { ref, computed, onMounted, inject } from 'vue'
-import axios from 'axios'
 
-// --- PERUBAHAN PENTING 1: INJECT AUTH DARI APP.VUE ---
+// --- PERUBAHAN 1: INJECT DATA DARI APP.VUE ---
 const auth = inject('auth');
-
-// --- PERUBAHAN PENTING 2: KONFIGURASI AXIOS ---
-// Gunakan URL lengkap jika frontend dan backend terpisah
-const API_URL = 'http://localhost:8000/api'; 
-
-// Buat instance axios
-const api = axios.create({
-  baseURL: API_URL,
-  headers: {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json'
-  }
-});
-
-// --- PERUBAHAN PENTING 3: INTERCEPTOR UNTUK TOKEN DINAMIS ---
-api.interceptors.request.use(config => {
-  // Ambil token secara reaktif dari auth yang di-inject
-  if (auth.token.value) {
-    config.headers.Authorization = `Bearer ${auth.token.value}`;
-  }
-  console.log('Sending Request:', `${config.method.toUpperCase()} ${config.baseURL}${config.url}`);
-  return config;
-}, error => {
-  return Promise.reject(error);
-});
 
 // --- STATE ---
 const kegiatanList = ref([])
@@ -148,7 +123,11 @@ const formData = ref({
   deskripsi: ''
 })
 const isLoading = ref(false)
-const errorMessage = ref('')
+const isSaving = ref(false)
+const isDeleting = ref(false)
+
+// State untuk notifikasi
+const notification = ref({ show: false, message: '', type: 'success', icon: 'fas fa-check-circle' })
 
 // --- COMPUTED ---
 const filteredKegiatan = computed(() => {
@@ -172,6 +151,20 @@ const modalTitle = computed(() => {
 })
 
 // --- METHODS ---
+const showNotification = (message, type = 'success') => {
+  notification.value = {
+    show: true,
+    message,
+    type,
+    icon: type === 'success' ? 'fas fa-check-circle' : 'fas fa-exclamation-circle'
+  }
+  setTimeout(hideNotification, 5000)
+}
+
+const hideNotification = () => {
+  notification.value.show = false
+}
+
 const formatDate = (dateString) => {
   if (!dateString) return ''
   return new Date(dateString).toLocaleDateString('id-ID', {
@@ -181,40 +174,8 @@ const formatDate = (dateString) => {
   })
 }
 
-const fetchKegiatan = async () => {
-  isLoading.value = true
-  errorMessage.value = ''
-  
-  try {
-    const response = await api.get('/schedules')
-    kegiatanList.value = response.data.data
-    console.log('Successfully fetched schedules:', response.data.data);
-  } catch (error) {
-    console.error('Error fetching schedules:', error)
-    
-    if (error.response) {
-      const status = error.response.status;
-      if (status === 401) {
-        errorMessage.value = 'Sesi Anda telah berakhir. Silakan login kembali.';
-        auth.handleLogout(); 
-      } else if (status === 403) {
-        errorMessage.value = 'Anda tidak memiliki izin untuk mengakses halaman ini.';
-      } else {
-        errorMessage.value = `Gagal memuat data. Server merespons dengan status: ${status}.`;
-      }
-    } else if (error.request) {
-      errorMessage.value = 'Gagal memuat data. Tidak ada respons dari server. Periksa koneksi internet dan alamat API.';
-    } else {
-      errorMessage.value = `Gagal memuat data. Terjadi kesalahan: ${error.message}`;
-    }
-  } finally {
-    isLoading.value = false
-  }
-}
-
 const openModal = (mode, kegiatan = null) => {
   modalMode.value = mode
-  errorMessage.value = ''
   if (mode === 'create') {
     formData.value = { id: null, nama: '', tanggal: '', deskripsi: '' }
   } else {
@@ -225,13 +186,24 @@ const openModal = (mode, kegiatan = null) => {
 
 const closeModal = () => {
   showModal.value = false
-  errorMessage.value = ''
+}
+
+// --- API METHODS (MENGGUNAKAN auth.api) ---
+const fetchKegiatan = async () => {
+  isLoading.value = true
+  try {
+    const response = await auth.api.get('/schedules')
+    kegiatanList.value = response.data.data
+  } catch (err) {
+    console.error('Error fetching schedules:', err)
+    showNotification(err.response?.data?.message || 'Gagal memuat data. Periksa izin Anda.', 'error')
+  } finally {
+    isLoading.value = false
+  }
 }
 
 const handleSave = async () => {
-  isLoading.value = true
-  errorMessage.value = ''
-  
+  isSaving.value = true
   try {
     const payload = {
       nama: formData.value.nama,
@@ -241,53 +213,43 @@ const handleSave = async () => {
 
     let response
     if (modalMode.value === 'create') {
-      response = await api.post('/schedules', payload)
+      response = await auth.api.post('/schedules', payload)
       kegiatanList.value.push(response.data.data)
-      alert(response.data.message)
+      showNotification('Jadwal kegiatan berhasil ditambahkan!', 'success')
     } else if (modalMode.value === 'edit') {
-      response = await api.put(`/schedules/${formData.value.id}`, payload)
+      response = await auth.api.put(`/schedules/${formData.value.id}`, payload)
       const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
       if (index !== -1) {
         kegiatanList.value[index] = response.data.data
       }
-      alert(response.data.message)
+      showNotification('Jadwal kegiatan berhasil diperbarui!', 'success')
     }
     closeModal()
-  } catch (error) {
-    console.error('Error saving schedule:', error)
-    if (error.response && error.response.status === 422) {
-      const errors = error.response.data
-      let errorMsg = 'Terjadi kesalahan validasi:\n'
-      for (const field in errors) {
-        errorMsg += `${errors[field].join(', ')}\n`
-      }
-      errorMessage.value = errorMsg
-    } else {
-      errorMessage.value = 'Gagal menyimpan jadwal. Periksa konsol untuk detail.'
-    }
+  } catch (err) {
+    console.error('Error saving schedule:', err)
+    showNotification(err.response?.data?.message || 'Gagal menyimpan jadwal. Periksa izin Anda.', 'error')
   } finally {
-    isLoading.value = false
+    isSaving.value = false
   }
 }
 
 const handleDelete = async (kegiatan) => {
-  if (confirm(`Apakah Anda yakin ingin menghapus jadwal "${kegiatan.nama}"?`)) {
-    isLoading.value = true
-    errorMessage.value = ''
-    
-    try {
-      const response = await api.delete(`/schedules/${kegiatan.id}`)
-      const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
-      if (index !== -1) {
-        kegiatanList.value.splice(index, 1)
-      }
-      alert(response.data.message)
-    } catch (error) {
-      console.error('Error deleting schedule:', error)
-      errorMessage.value = 'Gagal menghapus jadwal. Periksa konsol untuk detail.'
-    } finally {
-      isLoading.value = false
+  if (!confirm(`Apakah Anda yakin ingin menghapus jadwal "${kegiatan.nama}"?`)) {
+    return
+  }
+  isDeleting.value = true
+  try {
+    await auth.api.delete(`/schedules/${kegiatan.id}`)
+    const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
+    if (index !== -1) {
+      kegiatanList.value.splice(index, 1)
     }
+    showNotification('Jadwal kegiatan berhasil dihapus.', 'success')
+  } catch (err) {
+    console.error('Error deleting schedule:', err)
+    showNotification(err.response?.data?.message || 'Gagal menghapus jadwal. Periksa izin Anda.', 'error')
+  } finally {
+    isDeleting.value = false
   }
 }
 
@@ -318,25 +280,52 @@ onMounted(() => {
   font-size: 2rem;
 }
 
-/* --- PERUBAHAN 3: Tambahkan style untuk loading indicator --- */
+/* --- Notification --- */
+.notification {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  animation: slideIn 0.3s ease-out;
+}
+
+.notification.success {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+  border-left: 5px solid #4caf50;
+}
+
+.notification.error {
+  background-color: #fde8e8;
+  color: #c62828;
+  border-left: 5px solid #f44336;
+}
+
+.notification-close {
+  background: none;
+  border: none;
+  margin-left: auto;
+  cursor: pointer;
+  color: inherit;
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.notification-close:hover { opacity: 1; }
+
+@keyframes slideIn {
+  from { transform: translateY(-20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* --- Loading Indicator --- */
 .loading-indicator {
   text-align: center;
   padding: 2rem;
   font-size: 1.2rem;
-  color: #007bce; /* Warna biru sesuai permintaan */
-}
-
-/* Alert Styling */
-.alert {
-  padding: 0.75rem 1.25rem;
-  margin-bottom: 1rem;
-  border: 1px solid transparent;
-  border-radius: 0.25rem;
-}
-.alert-danger {
-  color: #721c24;
-  background-color: #f8d7da;
-  border-color: #f5c6cb;
+  color: #007bce;
 }
 
 /* --- Search Bar --- */
@@ -345,7 +334,6 @@ onMounted(() => {
   margin-bottom: 1.5rem;
   max-width: 400px;
 }
-
 .search-bar input {
   width: 100%;
   padding: 0.75rem 1rem 0.75rem 2.5rem;
@@ -353,7 +341,6 @@ onMounted(() => {
   border-radius: 8px;
   font-size: 1rem;
 }
-
 .search-bar i {
   position: absolute;
   left: 1rem;
@@ -369,12 +356,10 @@ onMounted(() => {
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
   overflow-x: auto;
 }
-
 .data-table {
   width: 100%;
   border-collapse: collapse;
 }
-
 .data-table th {
   background-color: #f8f9fa;
   padding: 1rem;
@@ -383,17 +368,14 @@ onMounted(() => {
   color: #495057;
   border-bottom: 2px solid #dee2e6;
 }
-
 .data-table td {
   padding: 1rem;
   border-bottom: 1px solid #eee;
   vertical-align: middle;
 }
-
 .text-center {
   text-align: center;
 }
-
 .action-buttons {
   display: flex;
   gap: 0.5rem;
@@ -411,12 +393,10 @@ onMounted(() => {
   align-items: center;
   gap: 0.5rem;
 }
-
 .btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
 }
-
 .btn-primary {
   background-color: #007bce;
   color: white;
@@ -424,7 +404,6 @@ onMounted(() => {
 .btn-primary:hover:not(:disabled) {
   background-color: #0056b3;
 }
-
 .btn-secondary {
   background-color: #6c757d;
   color: white;
@@ -446,30 +425,28 @@ onMounted(() => {
   box-shadow: 0 2px 5px rgba(0,0,0,0.1);
   font-size: 1rem;
 }
-
+.btn-icon:disabled { opacity: 0.6; cursor: not-allowed; }
 .btn-view { 
   background-color: #2196F3; 
   color: white; 
 }
-.btn-view:hover { 
+.btn-view:hover:not(:disabled) { 
   background-color: #0d8aee; 
   transform: scale(1.1); 
 }
-
 .btn-edit { 
   background-color: #FF9800; 
   color: white; 
 }
-.btn-edit:hover { 
+.btn-edit:hover:not(:disabled) { 
   background-color: #e68900; 
   transform: scale(1.1); 
 }
-
 .btn-delete { 
   background-color: #F44336; 
   color: white; 
 }
-.btn-delete:hover { 
+.btn-delete:hover:not(:disabled) { 
   background-color: #d32f2f; 
   transform: scale(1.1); 
 }
@@ -487,7 +464,6 @@ onMounted(() => {
   justify-content: center;
   z-index: 1000;
 }
-
 .modal-content {
   background-color: white;
   border-radius: 12px;
@@ -497,12 +473,10 @@ onMounted(() => {
   overflow-y: auto;
   animation: fadeIn 0.3s ease;
 }
-
 @keyframes fadeIn {
   from { opacity: 0; transform: scale(0.9); }
   to { opacity: 1; transform: scale(1); }
 }
-
 .modal-header {
   display: flex;
   justify-content: space-between;
@@ -521,7 +495,6 @@ onMounted(() => {
   cursor: pointer;
   color: #aaa;
 }
-
 .modal-body {
   padding: 1.5rem;
 }
@@ -549,7 +522,6 @@ onMounted(() => {
   background-color: #f8f9fa;
   cursor: not-allowed;
 }
-
 .modal-footer {
   display: flex;
   justify-content: flex-end;
