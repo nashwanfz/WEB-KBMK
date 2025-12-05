@@ -197,4 +197,36 @@ class AuthController extends Controller
             'data' => $request->user()
         ]);
     }
+
+    /**
+     * @OA\Get(
+     *     path="/users/coordinators",
+     *     tags={"Auth"},
+     *     summary="Mendapatkan daftar koordinator",
+     *     description="Endpoint untuk mengambil semua user dengan role 'koordinator'",
+     *     security={{"bearerAuth": {}}},
+     *     @OA\Response(
+     *         response=200,
+     *         description="Berhasil",
+     *         @OA\JsonContent(
+     *             @OA\Property(property="data", type="array", @OA\Items(
+     *                 @OA\Property(property="id", type="integer"),
+     *                 @OA\Property(property="username", type="string"),
+     *                 @OA\Property(property="division", type="object",
+     *                     @OA\Property(property="id", type="integer"),
+     *                     @OA\Property(property="nama", type="string")
+     *                 )
+     *             ))
+     *         )
+     *     )
+     * )
+     */
+    public function getCoordinators()
+    {
+        $coordinators = User::where('role', 'koor_divisi')
+            ->with('division:id,nama') // Pastikan relasi 'division' ada di model User
+            ->get(['id', 'username', 'division_id']);
+
+        return response()->json(['data' => $coordinators]);
+    }
 }
