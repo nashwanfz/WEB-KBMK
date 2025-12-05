@@ -1,8 +1,8 @@
 <template>
   <div class="welcome-page">
     <div class="welcome-header">
-      <h2>Selamat datang, Super Admin!</h2>
-      <p>Di sini Anda dapat mengelola semua konten website KBMK.</p>
+      <h2>Selamat datang, Admin!</h2>
+      <p>Di sini Anda dapat mengelola konten website KBMK.</p>
     </div>
 
     <!-- Indikator Loading -->
