@@ -18,11 +18,17 @@ class SuratDisposition extends Model
         'status'
     ];
 
+    /**
+     * Get the surat request that owns the disposition.
+     */
     public function suratRequest()
     {
         return $this->belongsTo(SuratRequest::class);
     }
 
+    /**
+     * Get the user that is assigned the disposition.
+     */
     public function assignedUser()
     {
         return $this->belongsTo(User::class, 'assigned_to');

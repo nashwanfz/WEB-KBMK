@@ -1,24 +1,37 @@
 <template>
   <div class="form-container">
-    
     <div class="form-content"> 
         <h2>Formulir Pengajuan Surat</h2>
         
         <form @submit.prevent="kirimSurat">
-            
             <div class="form-group">
                 <label for="namaPengirim">Nama Pengirim:</label>
-                <input type="text" id="namaPengirim" v-model="formData.namaPengirim" required />
+                <input type="text" id="namaPengirim" v-model="formData.nama_pengirim" required />
+            </div>
+
+            <div class="form-group">
+                <label for="emailPengirim">Email Pengirim:</label>
+                <input type="email" id="emailPengirim" v-model="formData.email_pengirim" />
+            </div>
+
+            <div class="form-group">
+                <label for="perihal">Perihal:</label>
+                <input type="text" id="perihal" v-model="formData.perihal" required />
+            </div>
+
+            <div class="form-group">
+                <label for="tujuan">Tujuan:</label>
+                <textarea id="tujuan" v-model="formData.tujuan" required></textarea>
             </div>
 
             <div class="form-group">
                 <label for="asalInstansi">Asal Instansi:</label>
-                <input type="text" id="asalInstansi" v-model="formData.asalInstansi" required />
+                <input type="text" id="asalInstansi" v-model="formData.asal_instansi" />
             </div>
 
             <div class="form-group">
                 <label for="jenisSurat">Jenis Surat:</label>
-                <select id="jenisSurat" v-model="formData.jenisSurat" required>
+                <select id="jenisSurat" v-model="formData.jenis_surat" required>
                     <option value="" disabled>Pilih Jenis Surat</option>
                     <option v-for="jenis in jenisSuratOptions" :key="jenis" :value="jenis">
                         {{ jenis }}
@@ -27,76 +40,111 @@
             </div>
 
             <div class="form-group">
-                <label for="fileSurat">File Surat (PDF/DOCX):</label>
-                <input type="file" id="fileSurat" @change="handleFileUpload" required />
-                <p v-if="formData.fileSurat" class="file-status">File Terpilih: **{{ formData.fileSurat.name }}**</p>
+                <label for="fileSurat">File Surat (PDF/DOC/DOCX):</label>
+                <input type="file" id="fileSurat" @change="handleFileUpload" accept=".pdf,.doc,.docx" required />
+                <p v-if="formData.file_surat" class="file-status">File Terpilih: {{ formData.file_surat.name }}</p>
             </div>
             
             <div class="form-actions">
                 <button type="submit" class="btn btn-primary" :disabled="isSubmitting">
                     {{ isSubmitting ? 'Mengirim...' : 'Kirim Surat' }}
                 </button>
-
-                <button 
-                  type="button" 
-                  @click="resetAndCloseForm" 
-                  class="btn btn-secondary"
-                  :disabled="isSubmitting"
-                >
+                <button type="button" @click="resetAndCloseForm" class="btn btn-secondary" :disabled="isSubmitting">
                   Batal
                 </button>
             </div>
 
             <div v-if="pesanSukses" class="message success-message">✅ {{ pesanSukses }}</div>
             <div v-if="pesanError" class="message error-message">❌ {{ pesanError }}</div>
-            
         </form>
     </div>
-    
   </div>
 </template>
 
 <script setup>
 import { ref, defineEmits } from 'vue';
+import axios from 'axios';
 
 const emit = defineEmits(['batal']);
 
+// Data form disesuaikan dengan field yang ada di backend
 const formData = ref({
-  namaPengirim: '',
-  asalInstansi: '',
-  jenisSurat: '',
-  fileSurat: null,
+  nama_pengirim: '',
+  email_pengirim: '',
+  perihal: '',
+  tujuan: '',
+  asal_instansi: '',
+  jenis_surat: '',
+  file_surat: null,
 });
 
-const jenisSuratOptions = ref(['Undangan', 'Permintaan Kerja Sama', 'Peminjaman Barang', 'Peminjaman Tempat','Lainnya']);
+const jenisSuratOptions = ref(['Undangan', 'Permintaan Kerja Sama', 'Peminjaman Barang', 'Peminjaman Tempat', 'Lainnya']);
 const pesanSukses = ref('');
 const pesanError = ref('');
 const isSubmitting = ref(false);
 
 const handleFileUpload = (event) => {
-  formData.value.fileSurat = event.target.files[0];
+  formData.value.file_surat = event.target.files[0];
 };
 
-const kirimSurat = () => {
+const kirimSurat = async () => {
   pesanSukses.value = '';
   pesanError.value = '';
   isSubmitting.value = true;
   
-  // Simulasi pengiriman API
-  setTimeout(() => {
-    isSubmitting.value = false;
-    pesanSukses.value = `Surat berhasil dikirim!`;
+  try {
+    const dataToSend = new FormData();
     
-    // Setelah sukses, bersihkan dan tutup modal setelah 2 detik
+    // Tambahkan semua field ke FormData
+    Object.keys(formData.value).forEach(key => {
+      if (formData.value[key] !== null) { // Pastikan tidak mengirim null
+        dataToSend.append(key, formData.value[key]);
+      }
+    });
+    
+    // Kirim ke API dengan URL lengkap
+    const response = await axios.post('http://localhost:8000/api/surat-requests', dataToSend, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    });
+    
+    pesanSukses.value = response.data.message || 'Surat berhasil diajukan!';
+    
+    // Tutup modal setelah 2 detik
     setTimeout(() => {
-        resetAndCloseForm(); 
+      resetAndCloseForm(); 
     }, 2000);
     
-  }, 2000);
+  } catch (error) {
+    console.error('Error submitting form:', error);
+    
+    if (error.response && error.response.data) {
+        // Jika error validasi, tampilkan pesan pertama
+        if (error.response.data.errors) {
+            const firstError = Object.values(error.response.data.errors)[0];
+            pesanError.value = Array.isArray(firstError) ? firstError[0] : firstError;
+        } else if (error.response.data.message) {
+            pesanError.value = error.response.data.message;
+        }
+    } else {
+      pesanError.value = 'Terjadi kesalahan saat mengirim surat. Silakan coba lagi.';
+    }
+  } finally {
+    isSubmitting.value = false;
+  }
 };
 
 const resetForm = () => {
-  formData.value = { namaPengirim: '', asalInstansi: '', jenisSurat: '', fileSurat: null };
+  formData.value = { 
+    nama_pengirim: '', 
+    email_pengirim: '', 
+    perihal: '', 
+    tujuan: '', 
+    asal_instansi: '', 
+    jenis_surat: '', 
+    file_surat: null 
+  };
   pesanSukses.value = '';
   pesanError.value = '';
   
@@ -113,43 +161,15 @@ const resetAndCloseForm = () => {
 </script>
 
 <style scoped>
-/* ==================================== */
-/* STYLING MODAL POP-UP (OVERLAY) */
-/* ==================================== */
-.form-container { 
-  position: fixed; /* Menempel di viewport */
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.6); /* Latar belakang gelap transparan */
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 1000; /* Pastikan di atas semua elemen */
-  overflow-y: auto; 
-}
-
-/* STYLING KONTEN FORMULIR */
-.form-content {
-    background-color: #ffffff;
-    padding: 25px;
-    border-radius: 8px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
-    max-width: 600px;
-    width: 90%; 
-    margin: 40px auto; 
-    /* Agar modal berada di tengah jika viewport lebih kecil */
-}
-
-/* ==================================== */
-/* STYLING INPUTS (Diambil dari jawaban sebelumnya) */
-/* ==================================== */
+/* Style tetap sama seperti sebelumnya */
+.form-container { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.6); display: flex; justify-content: center; align-items: center; z-index: 1000; overflow-y: auto; }
+.form-content { background-color: #ffffff; padding: 25px; border-radius: 8px; box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2); max-width: 600px; width: 90%; margin: 40px auto; }
 h2 { text-align: center; color: #333; margin-bottom: 25px; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
 .form-group { margin-bottom: 20px; }
 label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }
-input[type="text"], select { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; transition: border-color 0.3s; }
-input[type="text"]:focus, select:focus { border-color: #007bff; outline: none; }
+input[type="text"], input[type="email"], select, textarea { width: 100%; padding: 12px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; transition: border-color 0.3s; }
+textarea { min-height: 100px; resize: vertical; }
+input[type="text"]:focus, input[type="email"]:focus, select:focus, textarea:focus { border-color: #007bff; outline: none; }
 input[type="file"] { width: 100%; padding: 10px 0; }
 .file-status { margin-top: 5px; font-size: 0.9rem; color: #007bff; }
 .form-actions { margin-top: 30px; display: flex; gap: 15px; justify-content: flex-end; }
