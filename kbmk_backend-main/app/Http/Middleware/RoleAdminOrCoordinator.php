@@ -2,30 +2,36 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\API\Division; // Tambahkan ini
 use Closure;
 use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
 
 class RoleAdminOrCoordinator
 {
     /**
      * Handle an incoming request.
      *
-     * @param  \Illuminate\Http\Request  $request
-     * @param  \Closure(\Illuminate\Http\Request): (\Illuminate\Http\Response|\Illuminate\Http\RedirectResponse)  $next
-     * @return \Illuminate\Http\Response|\Illuminate\Http\RedirectResponse
+     * @param  \Closure(\Illuminate\Http\Request): (\Symfony\Component\HttpFoundation\Response)  $next
      */
-    public function handle(Request $request, Closure $next)
+    public function handle(Request $request, Closure $next): Response
     {
-        if (auth()->check()) {
-            $userRole = auth()->user()->role;
-
-            // Izinkan akses jika role-nya superadmin, admin, atau koor_divisi
-            if (in_array($userRole, ['superadmin', 'admin', 'koor_divisi'])) {
-                return $next($request);
-            }
+        if (!auth()->check()) {
+            return response()->json(['message' => 'Unauthenticated.'], 401);
         }
 
-        // Jika tidak memiliki izin, tampilkan error 403
-        abort(403, 'Anda tidak memiliki izin untuk mengakses halaman ini.');
+        $user = auth()->user();
+
+        if (in_array($user->role, ['admin', 'superadmin'])) {
+            return $next($request);
+        }
+
+        $mediaDivision = Division::where('nama', 'Media')->first();
+
+        if ($user->role === 'koor_divisi' && $user->division_id === $mediaDivision?->id) {
+            return $next($request);
+        }
+
+        return response()->json(['message' => 'Anda tidak memiliki izin akses.'], 403);
     }
 }

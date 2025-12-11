@@ -79,7 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Route yang bisa diakses oleh Admin & Koor Media
-    Route::middleware(['role.admin', 'role.koor_media'])->group(function () {
+    Route::middleware(['role.admin.or.coordinator'])->group(function () {
         Route::apiResource('documentations', DocumentationController::class)->except(['index', 'show']);
     });
 
