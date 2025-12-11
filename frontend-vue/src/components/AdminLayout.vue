@@ -42,11 +42,6 @@
             <span v-if="!isCollapsed">Kelola Link GForm</span>
           </a>
 
-          <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaKegiatan)" :class="{ active: activeComponent === SuperAdminKelolaKegiatan }">
-            <i class="fas fa-tasks"></i>
-            <span v-if="!isCollapsed">Kelola Kegiatan KBMK</span>
-          </a>
-
           <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaSurat)" :class="{ active: activeComponent === SuperAdminKelolaSurat }">
             <i class="fas fa-file-alt"></i>
             <span v-if="!isCollapsed">Kelola Surat</span>
