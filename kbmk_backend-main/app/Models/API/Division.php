@@ -2,14 +2,12 @@
 
 namespace App\Models\API;
 
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Division extends Model
 {
     use HasFactory;
-    protected $guarded = ['id'];
 
     protected $table = 'divisions';
 
@@ -18,13 +16,9 @@ class Division extends Model
         'deskripsi'
     ];
 
-    public function users()
-    {
-        return $this->hasMany(User::class);
-    }
-
+    // RELASI KE PENGURUS
     public function pengurus()
     {
-        return $this->hasMany(Pengurus::class);
+        return $this->hasMany(Pengurus::class, 'division_id', 'id');
     }
 }

@@ -173,6 +173,40 @@ paths:
       security:
         -
           bearerAuth: []
+  /users/coordinators:
+    get:
+      tags:
+        - Auth
+      summary: 'Mendapatkan daftar koordinator'
+      description: "Endpoint untuk mengambil semua user dengan role 'koordinator'"
+      operationId: 013aba22397c94fc1fb97e804fe62112
+      responses:
+        200:
+          description: Berhasil
+          content:
+            application/json:
+              schema:
+                properties:
+                  data:
+                    type: array
+                    items:
+                      properties:
+                        id:
+                          type: integer
+                        username:
+                          type: string
+                        division:
+                          properties:
+                            id:
+                              type: integer
+                            nama:
+                              type: string
+                          type: object
+                      type: object
+                type: object
+      security:
+        -
+          bearerAuth: []
   /documentations:
     get:
       tags:
@@ -1362,6 +1396,8 @@ paths:
                   enum:
                     - diproses
                     - selesai
+                catatan:
+                  type: string
               type: object
       responses:
         200:
@@ -1373,14 +1409,6 @@ paths:
                   data:
                     $ref: '#/components/schemas/SuratDisposition'
                 type: object
-        403:
-          description: 'Unauthorized - Bukan tugas Anda'
-        404:
-          description: 'Disposisi tidak ditemukan'
-        422:
-          description: 'Error validasi'
-        401:
-          description: Unauthorized
       security:
         -
           bearerAuth: []
@@ -1692,6 +1720,7 @@ components:
           type: string
           enum:
             - 'belum dibaca'
+            - diteruskan
             - diproses
             - selesai
           example: 'belum dibaca'
@@ -1720,6 +1749,15 @@ components:
           format: email
           example: koordivhumas@gmail.com
       type: object
+  responses:
+    403:
+      description: 'Unauthorized - Bukan tugas Anda'
+    404:
+      description: 'Disposisi tidak ditemukan'
+    422:
+      description: 'Error validasi'
+    401:
+      description: Unauthorized
   securitySchemes:
     bearerAuth:
       type: http
@@ -1731,6 +1769,9 @@ tags:
   -
     name: Authentication
     description: Authentication
+  -
+    name: Auth
+    description: Auth
   -
     name: Documentations
     description: Documentations

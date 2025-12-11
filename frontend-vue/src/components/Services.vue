@@ -1,13 +1,18 @@
 <template>
+  <!-- Bagian template tidak berubah -->
   <div class="links-container">
-    
-    <div>
+    <div v-if="isLoading" class="loading-placeholder">
+      <p>Memuat data layanan...</p>
+    </div>
+    <div v-else-if="error" class="error-placeholder">
+      <p>{{ error }}</p>
+    </div>
+    <div v-else>
       <h1>Layanan</h1>
       <p>Akses cepat ke berbagai layanan dan formulir KBMK.</p>
-
       <div class="links-grid">
         <div v-for="link in importantLinks" :key="link.id" class="link-card">
-          <h3>{{ link.name }}</h3>
+          <h3>{{ link.nama }}</h3>
           
           <button 
             v-if="link.isInternal" 
@@ -34,58 +39,78 @@
       v-if="showFormSurat" 
       @batal="showFormSurat = false" 
     />
-    
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue';
-import FormSurat from './FormSurat.vue'; // Pastikan path relatif ini benar
+import { ref, onMounted } from 'vue';
+import FormSurat from './FormSurat.vue';
+import axios from 'axios';
 
-const showFormSurat = ref(false); 
+const showFormSurat = ref(false);
+const importantLinks = ref([]);
+const isLoading = ref(true);
+const error = ref(null);
 
-const importantLinks = ref([
-  {
-    id: 1,
-    name: 'Pendataan Mahasiswa Baru Kristen',
-    url: 'https://docs.google.com/forms/d/e/1FAIpQLSdF39-Rlr-Q1tZCsZuioQCSefljUL0x4aNo0lcLWUDwDxhX7g/viewform',
-    isInternal: false 
-  },
-  {
-    id: 2,
-    name: 'Complain Center',
-    url: 'https://docs.google.com/forms/d/e/1FAIpQLSfPf_N7s3kCExKRcRJt1_hphcBTewMO0ZM-hWWUL2TX3kCSng/viewform?usp=send_form',
-    isInternal: false
-  },
-  {
-    id: 3,
-    name: 'Pendataan Wisuda Pengurus KBMK',
-    url: 'https://docs.google.com/forms/d/e/1FAIpQLScc-f2uolrfm58ldqYeWNRA28xAdTCOxx_g52ShnhgP13UFbA/viewform',
-    isInternal: false
-  },
-  {
-    id: 4,
-    name: 'Peminjaman Barang',
-    url: 'https://docs.google.com/forms/d/1E0-PpGHbRsdyATfSVe6Au9CU1BdLtzUbBJI9MWb-PnQ/viewform?edit_requested=true',
-    isInternal: false
-  },
-  {
-    id: 5,
-    name: 'Peminjaman Tempat',
-    url: 'https://docs.google.com/forms/d/1ZgoT9mMRfVlbmWX7zD1BN7EVz7xVVv_6q6O3U0y8UDA/viewform?edit_requested=true',
-    isInternal: false
-  },
-  {
-    id: 6,
-    name: 'Kotak Surat',
-    url: '#', 
-    isInternal: true 
-  },
-]);
+const fetchLinks = async () => {
+  try {
+    const response = await axios.get('http://localhost:8000/api/links');
+    
+    let fetchedLinks = [];
+    if (response.data && response.data.data) {
+      fetchedLinks = response.data.data.map(link => ({
+        id: link.id,
+        nama: link.nama,
+        // 👇 PERBAIKAN: Ubah 'link.url' menjadi 'link.link' sesuai nama kolom di database
+        url: link.link, 
+        isInternal: false
+      }));
+    }
+
+    // Tambahkan link "Kotak Surat" secara statis
+    fetchedLinks.push({
+      id: 'internal-surat-form',
+      nama: 'Kotak Surat',
+      url: '#',
+      isInternal: true
+    });
+
+    importantLinks.value = fetchedLinks;
+
+    // 👍 TAMBAHAN: Log untuk debugging, hapus jika sudah tidak diperlukan
+    console.log('Data links yang dimuat:', importantLinks.value);
+
+  } catch (err) {
+    console.error('Error fetching links:', err);
+    error.value = 'Gagal memuat data layanan. Silakan coba lagi nanti.';
+    
+    importantLinks.value = [{
+      id: 'internal-surat-form',
+      nama: 'Kotak Surat',
+      url: '#',
+      isInternal: true
+    }];
+  } finally {
+    isLoading.value = false;
+  }
+};
+
+onMounted(fetchLinks);
 </script>
 
 <style scoped>
-/* Pastikan styling ini digunakan untuk tampilan Services yang konsisten */
+/* Bagian style tidak berubah */
+.loading-placeholder, .error-placeholder {
+  text-align: center;
+  padding: 2rem;
+  color: #6c757d;
+}
+.error-placeholder {
+  color: #dc3545;
+  background-color: #f8d7da;
+  border: 1px solid #f5c6cb;
+  border-radius: 8px;
+}
 .links-container { padding: 2rem 1rem; position: relative; }
 h1 { text-align: center; color: #2c3e50; margin-bottom: 0.5rem; }
 .links-container > p { text-align: center; color: #555; margin-bottom: 2.5rem; }

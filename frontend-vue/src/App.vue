@@ -47,10 +47,25 @@ api.interceptors.response.use(
   }
 );
 
-// --- COMPUTED PROPERTIES UNTUK CEK ROLE ---
-const isAdmin = computed(() => user.value?.roles === 'admin' || user.value?.roles === 'superadmin');
-const isSuperAdmin = computed(() => user.value?.roles === 'superadmin');
-const isKoorMedia = computed(() => user.value?.roles === 'koordinator_media');
+// --- COMPUTED PROPERTIES UNTUK CEK ROLE (VERSI YANG DIPERBAIKI) ---
+const hasRole = (role) => {
+  if (!user.value || !user.value.roles) {
+    return false;
+  }
+  // Jika roles adalah string, bandingkan langsung
+  if (typeof user.value.roles === 'string') {
+    return user.value.roles === role;
+  }
+  // Jika roles adalah array, cek apakah role ada di dalam array
+  if (Array.isArray(user.value.roles)) {
+    return user.value.roles.includes(role);
+  }
+  return false;
+};
+
+const isAdmin = computed(() => hasRole('admin') || hasRole('superadmin'));
+const isSuperAdmin = computed(() => hasRole('superadmin'));
+const isKoorMedia = computed(() => hasRole('koordinator_media'));
 
 // --- FUNGSI AUTENTIKASI ---
 const handleLoginSuccess = (loginData) => {

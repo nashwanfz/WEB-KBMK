@@ -11,8 +11,7 @@
 
     <div class="page-header">
       <h1>Kelola Kegiatan</h1>
-      <!-- PERUBAHAN: Tombol Tambah hanya untuk Admin & Koor Media -->
-      <button v-if="auth.isAdmin || auth.isKoorMedia" class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
+      <button class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
         <i class="fas fa-plus"></i> Tambah Kegiatan Baru
       </button>
     </div>
@@ -38,28 +37,31 @@
             <th>Foto Kegiatan</th>
             <th>Nama Kegiatan</th>
             <th>Deskripsi</th>
+            <th>Tanggal</th>
+            <th>Lokasi</th>
             <th>Aksi</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="filteredKegiatan.length === 0">
-            <td colspan="4" class="text-center">Tidak ada kegiatan.</td>
+            <td colspan="6" class="text-center">Tidak ada kegiatan.</td>
           </tr>
           <tr v-for="kegiatan in filteredKegiatan" :key="kegiatan.id">
             <td>
-              <img :src="getPhotoUrl(kegiatan.foto_url)" alt="Foto Kegiatan" class="kegiatan-photo" />
+              <img :src="getPhotoUrl(kegiatan.foto)" alt="Foto Kegiatan" class="kegiatan-photo" />
             </td>
             <td>{{ kegiatan.nama }}</td>
             <td>{{ kegiatan.deskripsi }}</td>
+            <td>{{ formatDate(kegiatan.tanggal) }}</td>
+            <td>{{ kegiatan.lokasi }}</td>
             <td class="action-buttons">
-              <!-- PERUBAHAN: Tombol Edit & Hapus hanya untuk Admin & Koor Media -->
-              <button v-if="auth.isAdmin || auth.isKoorMedia" class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
+              <button class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
                 <i class="fas fa-eye"></i>
               </button>
-              <button v-if="auth.isAdmin || auth.isKoorMedia" class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
+              <button class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
                 <i class="fas fa-edit"></i>
               </button>
-              <button v-if="auth.isAdmin || auth.isKoorMedia" class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus" :disabled="isDeleting">
+              <button class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus" :disabled="isDeleting">
                 <i class="fas fa-trash"></i>
               </button>
             </td>
@@ -80,27 +82,50 @@
         <div class="modal-body">
           <form @submit.prevent="handleSave">
             <div class="form-group">
-              <label for="nama">Nama Kegiatan</label>
+              <label for="nama">Nama Kegiatan <span class="required">*</span></label>
               <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view' || isSaving" required />
             </div>
             <div class="form-group">
-              <label for="deskripsi">Deskripsi</label>
+              <label for="deskripsi">Deskripsi <span class="required">*</span></label>
               <textarea id="deskripsi" v-model="formData.deskripsi" :disabled="modalMode === 'view' || isSaving" rows="4" required></textarea>
             </div>
+            <div class="form-group">
+              <label for="tanggal">Tanggal <span class="required">*</span></label>
+              <input type="date" id="tanggal" v-model="formData.tanggal" :disabled="modalMode === 'view' || isSaving" required />
+            </div>
+            <div class="form-group">
+              <label for="lokasi">Lokasi <span class="required">*</span></label>
+              <input type="text" id="lokasi" v-model="formData.lokasi" :disabled="modalMode === 'view' || isSaving" required />
+            </div>
             <div class="form-group" v-if="modalMode !== 'view'">
-              <label for="foto">Foto Kegiatan</label>
-              <input type="file" id="foto" @change="handlePhotoUpload" accept="image/*" />
-              <p class="photo-hint">*Pilih file gambar untuk foto kegiatan.</p>
+              <label for="foto">
+                Foto Kegiatan 
+                <span v-if="modalMode === 'create'" class="required">*</span>
+              </label>
+              <input 
+                type="file" 
+                id="foto" 
+                @change="handlePhotoUpload" 
+                accept="image/jpeg,image/png,image/jpg,image/gif"
+                :required="modalMode === 'create'"
+                :disabled="isSaving"
+              />
+              <p class="photo-hint">
+                {{ modalMode === 'create' 
+                  ? '*Wajib upload foto. Format: JPEG, PNG, JPG, GIF. Maksimal 2MB' 
+                  : '*Kosongkan jika tidak ingin mengubah foto. Format: JPEG, PNG, JPG, GIF. Maksimal 2MB' 
+                }}
+              </p>
             </div>
-            <!-- Tampilkan foto saat ini di mode view/edit -->
-            <div class="form-group" v-if="modalMode === 'view' && formData.foto_url">
+            <!-- Tampilkan foto saat ini di mode view atau edit (jika belum ada preview baru) -->
+            <div class="form-group" v-if="(modalMode === 'view' || modalMode === 'edit') && formData.foto && !formData.newPhotoPreview">
               <label>Foto Saat Ini</label>
-              <img :src="getPhotoUrl(formData.foto_url)" alt="Foto Kegiatan" class="current-photo" />
+              <img :src="getPhotoUrl(formData.foto)" alt="Foto Kegiatan" class="current-photo" />
             </div>
-             <!-- Tampilkan preview foto baru di mode edit jika ada -->
-            <div class="form-group" v-if="modalMode === 'edit' && formData.foto_url && formData.foto_url.startsWith('data:')">
-              <label>Preview Foto Baru</label>
-              <img :src="formData.foto_url" alt="Preview Foto Baru" class="current-photo" />
+            <!-- Preview foto baru di mode create atau edit -->
+            <div class="form-group" v-if="formData.newPhotoPreview">
+              <label>{{ modalMode === 'create' ? 'Preview Foto' : 'Preview Foto Baru' }}</label>
+              <img :src="formData.newPhotoPreview" alt="Preview Foto" class="current-photo" />
             </div>
           </form>
         </div>
@@ -122,7 +147,6 @@
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
 
-// --- INTEGRASI API ---
 const auth = inject('auth');
 
 // --- STATE ---
@@ -134,15 +158,16 @@ const formData = ref({
   id: null,
   nama: '',
   deskripsi: '',
-  foto: null,
-  foto_url: null
+  tanggal: '',
+  lokasi: '',
+  foto: null, // Original foto path (string)
+  newPhotoFile: null, // New file object untuk upload
+  newPhotoPreview: null // Preview URL untuk foto baru
 })
 const isLoading = ref(false)
 const isSaving = ref(false)
 const isDeleting = ref(false)
 const errorMessage = ref('')
-
-// State untuk notifikasi
 const notification = ref({ show: false, message: '', type: 'success', icon: 'fas fa-check-circle' })
 
 // --- COMPUTED ---
@@ -152,7 +177,8 @@ const filteredKegiatan = computed(() => {
   }
   const query = searchQuery.value.toLowerCase()
   return kegiatanList.value.filter(kegiatan =>
-    kegiatan.nama.toLowerCase().includes(query)
+    kegiatan.nama.toLowerCase().includes(query) ||
+    (kegiatan.lokasi && kegiatan.lokasi.toLowerCase().includes(query))
   )
 })
 
@@ -182,21 +208,45 @@ const hideNotification = () => {
 
 const getPhotoUrl = (foto) => {
   if (!foto) {
-    return 'https://picsum.photos/id/99/800/600'; // Default foto jika tidak ada
+    return 'https://picsum.photos/id/99/800/600';
   }
   if (foto.startsWith('http')) {
     return foto;
   }
-  return `http://localhost:8000${foto}`;
+  return `http://localhost:8000/storage/${foto}`;
+}
+
+const formatDate = (dateString) => {
+  if (!dateString) return '-';
+  const options = { year: 'numeric', month: 'long', day: 'numeric' };
+  return new Date(dateString).toLocaleDateString('id-ID', options);
 }
 
 const openModal = (mode, kegiatan = null) => {
   modalMode.value = mode
   errorMessage.value = ''
   if (mode === 'create') {
-    formData.value = { id: null, nama: '', deskripsi: '', foto: null, foto_url: null }
+    formData.value = { 
+      id: null, 
+      nama: '', 
+      deskripsi: '', 
+      tanggal: '', 
+      lokasi: '', 
+      foto: null,
+      newPhotoFile: null,
+      newPhotoPreview: null
+    }
   } else {
-    formData.value = { ...kegiatan, foto: null }
+    formData.value = { 
+      id: kegiatan.id,
+      nama: kegiatan.nama,
+      deskripsi: kegiatan.deskripsi,
+      tanggal: kegiatan.tanggal,
+      lokasi: kegiatan.lokasi,
+      foto: kegiatan.foto, // Keep original foto path
+      newPhotoFile: null,
+      newPhotoPreview: null
+    }
   }
   showModal.value = true
 }
@@ -213,16 +263,32 @@ const fetchKegiatan = async () => {
   
   try {
     const response = await auth.api.get('/documentations')
-    kegiatanList.value = response.data.data
+    console.log('API Response:', response.data)
+    
+    // Handle different response structures
+    if (response.data.data && Array.isArray(response.data.data)) {
+      kegiatanList.value = response.data.data
+    } else if (Array.isArray(response.data)) {
+      kegiatanList.value = response.data
+    } else {
+      console.error('Unexpected response format:', response.data)
+      errorMessage.value = 'Format data tidak sesuai'
+    }
   } catch (err) {
     console.error('Error fetching documentations:', err)
-    errorMessage.value = err.response?.data?.message || 'Gagal memuat data. Periksa izin Anda.'
+    errorMessage.value = err.response?.data?.message || 'Gagal memuat data. Periksa koneksi Anda.'
   } finally {
     isLoading.value = false
   }
 }
 
 const handleSave = async () => {
+  // Validasi foto wajib untuk create
+  if (modalMode.value === 'create' && !formData.value.newPhotoFile) {
+    showNotification('Foto kegiatan wajib diisi!', 'error')
+    return
+  }
+
   isSaving.value = true
   errorMessage.value = ''
   
@@ -230,32 +296,47 @@ const handleSave = async () => {
     const payload = new FormData();
     payload.append('nama', formData.value.nama);
     payload.append('deskripsi', formData.value.deskripsi);
-    if (formData.value.foto) {
-      payload.append('foto', formData.value.foto);
+    payload.append('tanggal', formData.value.tanggal);
+    payload.append('lokasi', formData.value.lokasi);
+    
+    // Append foto jika ada file baru
+    if (formData.value.newPhotoFile) {
+      payload.append('foto', formData.value.newPhotoFile);
+    }
+
+    // Debug payload
+    console.log('Payload data:');
+    for (let pair of payload.entries()) {
+      console.log(pair[0], pair[1]);
     }
 
     let response
     if (modalMode.value === 'create') {
+      console.log('Creating new documentation...')
       response = await auth.api.post('/documentations', payload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
-      kegiatanList.value.push(response.data.data)
+      console.log('Create response:', response.data)
+      
+      const newData = response.data.data || response.data
+      kegiatanList.value.unshift(newData)
       showNotification('Kegiatan berhasil ditambahkan!', 'success')
+      
     } else if (modalMode.value === 'edit') {
-      const dataToUpdate = new FormData();
-      dataToUpdate.append('_method', 'PUT');
-      dataToUpdate.append('nama', formData.value.nama);
-      dataToUpdate.append('deskripsi', formData.value.deskripsi);
-      if (formData.value.foto instanceof File) {
-        dataToUpdate.append('foto', formData.value.foto);
-      }
-
-      response = await auth.api.post(`/documentations/${formData.value.id}`, dataToUpdate, {
+      console.log('Updating documentation:', formData.value.id)
+      
+      // PENTING: Laravel memerlukan _method untuk FormData PUT
+      payload.append('_method', 'PUT');
+      
+      response = await auth.api.post(`/documentations/${formData.value.id}`, payload, {
         headers: { 'Content-Type': 'multipart/form-data' }
       })
+      console.log('Update response:', response.data)
+      
+      const updatedData = response.data.data || response.data
       const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
       if (index !== -1) {
-        kegiatanList.value[index] = response.data.data
+        kegiatanList.value[index] = updatedData
       }
       showNotification('Kegiatan berhasil diperbarui!', 'success')
     }
@@ -263,10 +344,15 @@ const handleSave = async () => {
     closeModal()
   } catch (error) {
     console.error('Error saving documentation:', error)
+    console.error('Error response:', error.response)
+    
     if (error.response?.status === 422 && error.response.data.errors) {
-      validationErrors.value = error.response.data.errors
+      const errorMessages = Object.values(error.response.data.errors).flat().join('\n');
+      showNotification(errorMessages, 'error');
+    } else if (error.response?.data?.message) {
+      showNotification(error.response.data.message, 'error')
     } else {
-      showNotification(error.response?.data?.message || 'Gagal menyimpan kegiatan. Periksa izin Anda.', 'error')
+      showNotification('Gagal menyimpan kegiatan. Periksa koneksi Anda.', 'error')
     }
   } finally {
     isSaving.value = false
@@ -277,9 +363,11 @@ const handleDelete = async (kegiatan) => {
   if (!confirm(`Apakah Anda yakin ingin menghapus "${kegiatan.nama}"?`)) {
     return
   }
+  
   isDeleting.value = true
   try {
     await auth.api.delete(`/documentations/${kegiatan.id}`)
+    
     const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
     if (index !== -1) {
       kegiatanList.value.splice(index, 1)
@@ -287,7 +375,7 @@ const handleDelete = async (kegiatan) => {
     showNotification('Kegiatan berhasil dihapus.', 'success')
   } catch (err) {
     console.error('Error deleting documentation:', err)
-    showNotification(err.response?.data?.message || 'Gagal menghapus kegiatan. Periksa izin Anda.', 'error')
+    showNotification(err.response?.data?.message || 'Gagal menghapus kegiatan. Periksa koneksi Anda.', 'error')
   } finally {
     isDeleting.value = false
   }
@@ -295,18 +383,39 @@ const handleDelete = async (kegiatan) => {
 
 const handlePhotoUpload = (event) => {
   const file = event.target.files[0]
-  if (file) {
-    formData.value.foto = file
-    const reader = new FileReader()
-    reader.onload = (e) => {
-      formData.value.foto_url = e.target.result
-    }
-    reader.readAsDataURL(file)
+  if (!file) return
+  
+  // Validate file type
+  const validTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/gif']
+  if (!validTypes.includes(file.type)) {
+    showNotification('Format file tidak valid. Gunakan JPEG, PNG, JPG, atau GIF.', 'error')
+    event.target.value = ''
+    return
   }
+  
+  // Validate file size (2MB = 2048KB)
+  if (file.size > 2048 * 1024) {
+    showNotification('Ukuran file terlalu besar. Maksimal 2MB.', 'error')
+    event.target.value = ''
+    return
+  }
+  
+  formData.value.newPhotoFile = file
+  
+  // Create preview
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    formData.value.newPhotoPreview = e.target.result
+  }
+  reader.readAsDataURL(file)
+  
+  console.log('Photo selected:', file.name, 'Size:', (file.size / 1024).toFixed(2), 'KB')
 }
 
 // --- LIFECYCLE ---
 onMounted(() => {
+  console.log('Component mounted')
+  console.log('Auth API:', auth.api)
   fetchKegiatan()
 })
 </script>
@@ -583,7 +692,11 @@ onMounted(() => {
   font-weight: 600;
   color: #495057;
 }
+.required {
+  color: #F44336;
+}
 .form-group input[type="text"],
+.form-group input[type="date"],
 .form-group textarea {
   width: 100%;
   padding: 0.75rem;
@@ -606,10 +719,11 @@ onMounted(() => {
   cursor: not-allowed;
 }
 .photo-hint {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: #6c757d;
-  margin-top: 0.25rem;
+  margin-top: 0.5rem;
   margin-bottom: 0;
+  line-height: 1.4;
 }
 .current-photo {
   width: 100%;

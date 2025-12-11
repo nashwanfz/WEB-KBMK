@@ -33,22 +33,27 @@ Route::get('/links/{id}', [LinkController::class, 'show']);
 // Guest mengajukan surat
 Route::post('/surat-requests', [SuratRequestController::class, 'store']);
 
-
-
 // API Routes - Protected (Membutuhkan Login)
 Route::middleware('auth:sanctum')->group(function () {
     
     // Route untuk user yang sudah login (semua role)
     Route::post('/logout', [AuthController::class, 'logout']);
     Route::get('/me', [AuthController::class, 'me']);
+    
+    // Route untuk mendapatkan data koordinator
+    Route::get('/users/coordinators', [AuthController::class, 'getCoordinators']);
+
+    // =============================================================
+    // ROUTE UNTUK MELIHAT DAFTAR SURAT (ADMIN & KOORDINATOR)
+    // =============================================================
+    Route::get('/surat-requests', [SuratRequestController::class, 'index'])
+        ->middleware('role.admin.or.coordinator');
 
     // API Routes - Fitur Persuratan
 
     // Route yang hanya bisa diakses oleh Superadmin & Admin (Sekretaris/Ketua)
     Route::middleware(['role.admin'])->group(function () {
-        // Melihat semua surat masuk
-        Route::get('/surat-requests', [SuratRequestController::class, 'index']);
-        // Menugaskan surat ke divisi
+        // Menugaskan surat ke divisi (TETAP DI SINI, HANYA ADMIN)
         Route::patch('/surat-requests/{suratRequest}/assign', [SuratRequestController::class, 'assign']);
         // Melihat dan mengelola surat keluar
         Route::apiResource('surat-outgoing', SuratOutgoingController::class);
@@ -74,7 +79,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // Route yang bisa diakses oleh Admin & Koor Media
-    Route::middleware(['role.admin', 'role.koor_media'])->group(function () {
+    Route::middleware(['role.admin.or.coordinator'])->group(function () {
         Route::apiResource('documentations', DocumentationController::class)->except(['index', 'show']);
     });
 

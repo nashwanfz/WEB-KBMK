@@ -17,6 +17,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'role.superadmin' => \App\Http\Middleware\IsSuperAdmin::class,
             'role.koordinator' => \App\Http\Middleware\IsKoorDivisi::class,
             'role.koor_media' => \App\Http\Middleware\IsKoorMedia::class,
+            'role.admin.or.coordinator' => \App\Http\Middleware\RoleAdminOrCoordinator::class,
         ]);
 
         $middleware->api(append: [

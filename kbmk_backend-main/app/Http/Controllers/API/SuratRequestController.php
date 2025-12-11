@@ -37,9 +37,9 @@ use Illuminate\Support\Str;
  *     @OA\Property(property="surat_request_id", type="integer", example=1),
  *     @OA\Property(property="assigned_to", type="integer", example=5),
  *     @OA\Property(property="catatan", type="string", example="Mohon segera diproses."),
- *     @OA\Property(property="status", type="string", enum={"belum dibaca", "diproses", "selesai"}, example="belum dibaca"),
- *     @OA\Property(property="assignedUser", type="object", ref="#/components/schemas/UserSimple"),
- *     @OA\Property(property="suratRequest", type="object", ref="#/components/schemas/SuratRequest"),
+ *     @OA\Property(property="status", type="string", enum={"belum dibaca", "diteruskan", "diproses", "selesai"}, example="belum dibaca"),
+ *     @OA\Property(property="assignedUser", ref="#/components/schemas/UserSimple"),
+ *     @OA\Property(property="suratRequest", ref="#/components/schemas/SuratRequest"),
  *     @OA\Property(property="created_at", type="string", format="date-time"),
  *     @OA\Property(property="updated_at", type="string", format="date-time")
  * )
@@ -81,7 +81,8 @@ class SuratRequestController extends Controller
             'file_surat' => 'required|file|mimes:pdf,doc,docx|max:2048',
         ]);
 
-        $filePath = $request->file('file_surat')->store('surat_requests');
+        $filePath = $request->file('file_surat')->store('surat_requests', 'public');
+        
         $nomorSurat = 'SR-' . date('Ymd') . '-' . strtoupper(Str::random(4));
 
         $surat = SuratRequest::create([
@@ -114,7 +115,7 @@ class SuratRequestController extends Controller
      */
     public function index()
     {
-        // Muat data disposisi juga untuk melihat ke mana surat sudah ditugaskan
+        // Untuk admin, muat semua surat beserta disposisinya
         $surats = SuratRequest::with('dispositions.assignedUser')->latest()->get();
 
         return response()->json([
@@ -159,6 +160,7 @@ class SuratRequestController extends Controller
                 'surat_request_id' => $suratRequest->id,
                 'assigned_to' => $request->assigned_to,
                 'catatan' => $request->catatan,
+                'status' => 'diteruskan',
             ]);
 
             $suratRequest->update(['status' => 'diteruskan']);
@@ -189,8 +191,10 @@ class SuratRequestController extends Controller
      */
     public function myDispositions()
     {
+        // Ambil disposisi yang ditugaskan ke user yang login
+        // DAN PASTIKAN UNTUK MEMUAT RELASI 'suratRequest'
         $dispositions = SuratDisposition::where('assigned_to', Auth::user()->id)
-            ->with('suratRequest') 
+            ->with('suratRequest') // Baris ini WAJIB ada
             ->latest()
             ->get();
 
@@ -210,11 +214,12 @@ class SuratRequestController extends Controller
      *     @OA\RequestBody(
      *         @OA\MediaType(mediaType="application/json",
      *             @OA\Schema(required={"status"},
-     *                 @OA\Property(property="status", type="string", enum={"diproses", "selesai"})
+     *                 @OA\Property(property="status", type="string", enum={"diproses", "selesai"}),
+     *                 @OA\Property(property="catatan", type="string")
      *             )
      *         )
      *     ),
-     *     @OA\Response(response=200, description="Status berhasil diperbarui", @OA\JsonContent(@OA\Property(property="data", ref="#/components/schemas/SuratDisposition"))),
+     *     @OA\Response(response=200, description="Status berhasil diperbarui", @OA\JsonContent(@OA\Property(property="data", ref="#/components/schemas/SuratDisposition")))),
      *     @OA\Response(response=403, description="Unauthorized - Bukan tugas Anda"),
      *     @OA\Response(response=404, description="Disposisi tidak ditemukan"),
      *     @OA\Response(response=422, description="Error validasi"),
@@ -229,8 +234,13 @@ class SuratRequestController extends Controller
 
         $request->validate([
             'status' => 'required|in:diproses,selesai',
+            'catatan' => 'nullable|string'
         ]);
-        $suratDisposition->update(['status' => $request->status]);
+
+        $suratDisposition->update([
+            'status' => $request->status,
+            'catatan' => $request->catatan
+        ]);
 
         if ($request->status === 'selesai') {
             $suratDisposition->suratRequest->update(['status' => 'selesai']);
@@ -238,7 +248,7 @@ class SuratRequestController extends Controller
 
         return response()->json([
             'message' => 'Status berhasil diperbarui.',
-            'data' => $suratDisposition
+            'data' => $suratDisposition->load('suratRequest')
         ]);
     }
 }
