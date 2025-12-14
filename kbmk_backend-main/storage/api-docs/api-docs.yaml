@@ -1475,7 +1475,7 @@ components:
           example: documentations/nama_file.jpg
         foto_url:
           type: string
-          example: 'http://localhost:8000/storage/documentations/nama_file.jpg'
+          example: 'https://kbmk.unmul.ac.id/storage/documentations/nama_file.jpg'
         created_at:
           type: string
           format: date-time
@@ -1542,7 +1542,7 @@ components:
           example: pengurus/nama_file.jpg
         foto_url:
           type: string
-          example: 'http://localhost:8000/storage/pengurus/nama_file.jpg'
+          example: 'https://kbmk.unmul.ac.id/storage/pengurus/nama_file.jpg'
         deskripsi:
           type: string
           example: 'Bertanggung jawab atas kelancaran program kerja.'

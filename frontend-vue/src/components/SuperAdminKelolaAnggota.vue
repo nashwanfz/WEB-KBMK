@@ -64,7 +64,7 @@ const getDefaultPhoto = () => 'https://i.pravatar.cc/150?d=mp'
 const getPhotoUrl = (foto) => {
   if (!foto) return getDefaultPhoto()
   if (foto.startsWith('http') || foto.startsWith('data:')) return foto
-  return `http://localhost:8000/storage/${foto}`
+  return `https://kbmk.unmul.ac.id/api/storage/${foto}`
 }
 
 const formatDate = (dateString) => {

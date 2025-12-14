@@ -3,7 +3,7 @@ import { ref, onMounted, inject } from 'vue';
 import axios from 'axios';
 
 // Konfigurasi API
-const API_URL = 'http://localhost:8000/api';
+const API_URL = 'https://kbmk.unmul.ac.id/api';
 
 // Emit event ke App.vue
 const emit = defineEmits(['login-success', 'show-home']);

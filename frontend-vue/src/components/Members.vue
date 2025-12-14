@@ -11,7 +11,7 @@ const selectedDivision = ref(null);
 const getPhotoUrl = (foto) => {
   if (!foto) return 'https://i.pravatar.cc/300?d=mp';
   if (foto.startsWith('http') || foto.startsWith('data:')) return foto;
-  return `http://localhost:8000/storage/${foto}`;
+  return `https://kbmk.unmul.ac.id/api/storage/${foto}`;
 };
 
 // Fungsi untuk menentukan prioritas jabatan (untuk mengurutkan anggota dalam divisi)
@@ -48,7 +48,7 @@ const getDivisionPriority = (divisionName) => {
 // Ambil data pengurus
 onMounted(async () => {
   try {
-    const res = await axios.get("http://localhost:8000/api/pengurus");
+    const res = await axios.get("https://kbmk.unmul.ac.id/api/pengurus");
     const data = res.data.data;
 
     // Kelompokkan pengurus berdasarkan division.nama

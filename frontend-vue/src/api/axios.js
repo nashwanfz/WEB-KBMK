@@ -4,8 +4,7 @@ import axios from 'axios';
 // 1. Buat instance Axios dengan konfigurasi dasar
 const apiClient = axios.create({
   // Ganti dengan Base URL dari api-docs.yaml Anda
-  // Jika backend Anda ada di server yang sama (localhost:8000), gunakan ini.
-  baseURL: 'http://localhost:8000/api', 
+  baseURL: 'https://kbmk.unmul.ac.id/api', 
   
   // Atur header default untuk setiap request
   headers: {

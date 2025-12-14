@@ -3,7 +3,7 @@ import axios from 'axios';
 
 // Buat instance axios dengan konfigurasi dasar
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api', // Sesuaikan dengan URL API Laravel Anda
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://kbmk.unmul.ac.id/api', // Sesuaikan dengan URL API Laravel Anda
   headers: {
     'Content-Type': 'application/json',
     'Accept': 'application/json',

@@ -213,7 +213,7 @@ const getPhotoUrl = (foto) => {
   if (foto.startsWith('http')) {
     return foto;
   }
-  return `http://localhost:8000/storage/${foto}`;
+  return `https://kbmk.unmul.ac.id/api/storage/${foto}`;
 }
 
 const formatDate = (dateString) => {

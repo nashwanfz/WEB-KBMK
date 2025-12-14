@@ -189,7 +189,7 @@ const fetchUserData = async () => {
 
     console.log('📡 Fetching user data from API...')
     
-    const response = await axios.get('http://localhost:8000/api/me', {
+    const response = await axios.get('https://kbmk.unmul.ac.id/api/me', {
       headers: {
         'Authorization': `Bearer ${token}`
       }

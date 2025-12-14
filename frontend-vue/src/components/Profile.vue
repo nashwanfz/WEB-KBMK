@@ -11,7 +11,7 @@ const error = ref(null);
 
 onMounted(async () => {
   try {
-    const res = await axios.get("http://localhost:8000/api/profile-descs");
+    const res = await axios.get("https://kbmk.unmul.ac.id/api/profile-descs");
     const data = res.data.data;
 
     // Ambil deskripsi sesuai jenis

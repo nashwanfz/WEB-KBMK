@@ -385,7 +385,7 @@ const handleUpdateStatus = async () => {
 const downloadFile = (disposition) => {
   // 👇 PERBAIKAN: Ganti 'suratRequest' menjadi 'surat_request'
   if (disposition.surat_request?.file_surat) {
-    window.open(`http://localhost:8000/storage/${disposition.surat_request.file_surat}`, '_blank')
+    window.open(`https://kbmk.unmul.ac.id/api/storage/${disposition.surat_request.file_surat}`, '_blank')
   } else {
     alert('Tidak ada file yang tersedia untuk surat ini.')
   }
@@ -393,7 +393,7 @@ const downloadFile = (disposition) => {
 
 const getFileUrl = (filePath) => {
   if (!filePath) return '#'
-  return `http://localhost:8000/files/${filePath}`
+  return `https://kbmk.unmul.ac.id/api/files/${filePath}`
 }
 
 const openPdfModal = async (filePath) => {

@@ -20,7 +20,7 @@ const isLoading = ref(true);
 
 // --- INSTANCE AXIOS DENGAN INTERCEPTOR ---
 const api = axios.create({
-  baseURL: 'http://localhost:8000/api',
+  baseURL: 'https://kbmk.unmul.ac.id/api',
   headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
   timeout: 5000 // Timeout 5 detik
 });

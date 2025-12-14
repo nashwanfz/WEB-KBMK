@@ -59,7 +59,7 @@ const activities = ref([]);
 const selectedActivity = ref(null);
 
 // Ganti sesuai base URL backend kamu
-const baseURL = "http://localhost:8000";
+const baseURL = "https://kbmk.unmul.ac.id/api";
 
 // Fetch data dari backend Laravel
 const fetchActivities = async () => {
