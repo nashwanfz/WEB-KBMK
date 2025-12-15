@@ -1,114 +1,7 @@
-<template>
-  <div class="kelola-kalender-container">
-    <!-- Notifikasi Sederhana -->
-    <div v-if="notification.show" :class="['notification', notification.type]">
-      <i :class="notification.icon"></i>
-      <span>{{ notification.message }}</span>
-      <button class="notification-close" @click="hideNotification">
-        <i class="fas fa-times"></i>
-      </button>
-    </div>
-
-    <div class="page-header">
-      <h1>Kelola Kalender Kegiatan</h1>
-      <!-- PERUBAHAN: Tombol Tambah hanya untuk Superadmin -->
-      <button v-if="auth.isSuperAdmin" class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
-        <i class="fas fa-plus"></i> Tambah Jadwal Baru
-      </button>
-    </div>
-
-    <div class="search-bar">
-      <input type="text" placeholder="Cari berdasarkan nama kegiatan atau deskripsi..." v-model="searchQuery" />
-      <i class="fas fa-search"></i>
-    </div>
-
-    <!-- Tampilkan indikator loading di luar tabel -->
-    <div v-if="isLoading" class="loading-indicator">
-      <i class="fas fa-spinner fa-spin"></i> Memuat data...
-    </div>
-
-    <!-- Tampilkan tabel jika TIDAK loading -->
-    <div v-else class="table-wrapper">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>Nama Kegiatan</th>
-            <th>Tanggal</th>
-            <th>Deskripsi</th>
-            <th>Aksi</th>
-          </tr>
-        </thead>
-        <tbody>
-          <!-- Tampilkan pesan jika tidak ada data -->
-          <tr v-if="filteredKegiatan.length === 0">
-            <td colspan="4" class="text-center">Tidak ada jadwal kegiatan.</td>
-          </tr>
-          <!-- Tampilkan data jadwal -->
-          <tr v-for="kegiatan in filteredKegiatan" :key="kegiatan.id">
-            <td>{{ kegiatan.nama }}</td>
-            <td>{{ formatDate(kegiatan.tanggal) }}</td>
-            <td>{{ kegiatan.deskripsi }}</td>
-            <td class="action-buttons">
-              <!-- PERUBAHAN: Tombol Edit & Hapus hanya untuk Superadmin -->
-              <button v-if="auth.isSuperAdmin" class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
-                <i class="fas fa-eye"></i>
-              </button>
-              <button v-if="auth.isSuperAdmin" class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
-                <i class="fas fa-edit"></i>
-              </button>
-              <button v-if="auth.isSuperAdmin" class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus" :disabled="isDeleting">
-                <i class="fas fa-trash"></i>
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Modal untuk Tambah, Edit, dan Lihat Detail -->
-    <div v-if="showModal" class="modal-overlay" @click="closeModal">
-      <div class="modal-content" @click.stop>
-        <div class="modal-header">
-          <h3>{{ modalTitle }}</h3>
-          <button class="close-btn" @click="closeModal">
-            <i class="fas fa-times"></i>
-          </button>
-        </div>
-        <div class="modal-body">
-          <form @submit.prevent="handleSave">
-            <div class="form-group">
-              <label for="nama">Nama Kegiatan</label>
-              <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view' || isSaving" required />
-            </div>
-            <div class="form-group">
-              <label for="tanggal">Tanggal</label>
-              <input type="date" id="tanggal" v-model="formData.tanggal" :disabled="modalMode === 'view' || isSaving" required />
-            </div>
-            <div class="form-group">
-              <label for="deskripsi">Deskripsi</label>
-              <textarea id="deskripsi" v-model="formData.deskripsi" :disabled="modalMode === 'view' || isSaving" rows="4" required></textarea>
-            </div>
-          </form>
-        </div>
-        <div class="modal-footer">
-          <button v-if="modalMode === 'view'" class="btn btn-secondary" @click="closeModal">Tutup</button>
-          <template v-else>
-            <button type="button" class="btn btn-secondary" @click="closeModal" :disabled="isSaving">Batal</button>
-            <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isSaving">
-              <i v-if="isSaving" class="fas fa-spinner fa-spin"></i>
-              {{ isSaving ? 'Menyimpan...' : 'Simpan' }}
-            </button>
-          </template>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
 
-// --- PERUBAHAN 1: INJECT DATA DARI APP.VUE ---
+// --- INJECT DATA DARI APP.VUE ---
 const auth = inject('auth');
 
 // --- STATE ---
@@ -188,11 +81,17 @@ const closeModal = () => {
   showModal.value = false
 }
 
-// --- API METHODS (MENGGUNAKAN auth.api) ---
+// --- API METHODS ---
 const fetchKegiatan = async () => {
+  // PERBAIKAN: Tambahkan pemeriksaan keamanan
+  if (!auth || !auth.value || !auth.value.api) {
+    console.error("Auth atau API tidak tersedia saat fetchKegiatan");
+    return;
+  }
+
   isLoading.value = true
   try {
-    const response = await auth.api.get('/schedules')
+    const response = await auth.value.api.get('/schedules')
     kegiatanList.value = response.data.data
   } catch (err) {
     console.error('Error fetching schedules:', err)
@@ -213,11 +112,11 @@ const handleSave = async () => {
 
     let response
     if (modalMode.value === 'create') {
-      response = await auth.api.post('/schedules', payload)
+      response = await auth.value.api.post('/schedules', payload)
       kegiatanList.value.push(response.data.data)
       showNotification('Jadwal kegiatan berhasil ditambahkan!', 'success')
     } else if (modalMode.value === 'edit') {
-      response = await auth.api.put(`/schedules/${formData.value.id}`, payload)
+      response = await auth.value.api.put(`/schedules/${formData.value.id}`, payload)
       const index = kegiatanList.value.findIndex(k => k.id === formData.value.id)
       if (index !== -1) {
         kegiatanList.value[index] = response.data.data
@@ -239,7 +138,7 @@ const handleDelete = async (kegiatan) => {
   }
   isDeleting.value = true
   try {
-    await auth.api.delete(`/schedules/${kegiatan.id}`)
+    await auth.value.api.delete(`/schedules/${kegiatan.id}`)
     const index = kegiatanList.value.findIndex(k => k.id === kegiatan.id)
     if (index !== -1) {
       kegiatanList.value.splice(index, 1)
@@ -258,6 +157,110 @@ onMounted(() => {
   fetchKegiatan()
 })
 </script>
+
+<!-- PERBAIKAN: Gunakan pemeriksaan berlapis di template -->
+<!-- PERBAIKAN: Gunakan optional chaining untuk pemeriksaan yang lebih andal -->
+<template>
+  <div class="kelola-kalender-container">
+    <div v-if="notification.show" :class="['notification', notification.type]">
+      <i :class="notification.icon"></i>
+      <span>{{ notification.message }}</span>
+      <button class="notification-close" @click="hideNotification">
+        <i class="fas fa-times"></i>
+      </button>
+    </div>
+
+    <div class="page-header">
+      <h1>Kelola Kalender Kegiatan</h1>
+      <!-- PERBAIKAN: Gunakan optional chaining ?. -->
+      <button v-if="auth.value?.user?.role === 'superadmin'" class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
+        <i class="fas fa-plus"></i> Tambah Jadwal Baru
+      </button>
+    </div>
+
+    <div class="search-bar">
+      <input type="text" placeholder="Cari berdasarkan nama kegiatan atau deskripsi..." v-model="searchQuery" />
+      <i class="fas fa-search"></i>
+    </div>
+
+    <div v-if="isLoading" class="loading-indicator">
+      <i class="fas fa-spinner fa-spin"></i> Memuat data...
+    </div>
+
+    <div v-else class="table-wrapper">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Nama Kegiatan</th>
+            <th>Tanggal</th>
+            <th>Deskripsi</th>
+            <th>Aksi</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="filteredKegiatan.length === 0">
+            <td colspan="4" class="text-center">Tidak ada jadwal kegiatan.</td>
+          </tr>
+          <tr v-for="kegiatan in filteredKegiatan" :key="kegiatan.id">
+            <td>{{ kegiatan.nama }}</td>
+            <td>{{ formatDate(kegiatan.tanggal) }}</td>
+            <td>{{ kegiatan.deskripsi }}</td>
+            <td class="action-buttons">
+              <!-- PERBAIKAN: Gunakan optional chaining ?. -->
+              <button v-if="auth.value?.user?.role === 'superadmin'" class="btn-icon btn-view" @click="openModal('view', kegiatan)" title="Lihat Detail">
+                <i class="fas fa-eye"></i>
+              </button>
+              <button v-if="auth.value?.user?.role === 'superadmin'" class="btn-icon btn-edit" @click="openModal('edit', kegiatan)" title="Edit">
+                <i class="fas fa-edit"></i>
+              </button>
+              <button v-if="auth.value?.user?.role === 'superadmin'" class="btn-icon btn-delete" @click="handleDelete(kegiatan)" title="Hapus" :disabled="isDeleting">
+                <i class="fas fa-trash"></i>
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Modal untuk Tambah, Edit, dan Lihat Detail -->
+    <div v-if="showModal" class="modal-overlay" @click="closeModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3>{{ modalTitle }}</h3>
+          <button class="close-btn" @click="closeModal">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <form @submit.prevent="handleSave">
+            <div class="form-group">
+              <label for="nama">Nama Kegiatan</label>
+              <input type="text" id="nama" v-model="formData.nama" :disabled="modalMode === 'view' || isSaving" required />
+            </div>
+            <div class="form-group">
+              <label for="tanggal">Tanggal</label>
+              <input type="date" id="tanggal" v-model="formData.tanggal" :disabled="modalMode === 'view' || isSaving" required />
+            </div>
+            <div class="form-group">
+              <label for="deskripsi">Deskripsi</label>
+              <textarea id="deskripsi" v-model="formData.deskripsi" :disabled="modalMode === 'view' || isSaving" rows="4" required></textarea>
+            </div>
+          </form>
+        </div>
+        <div class="modal-footer">
+          <button v-if="modalMode === 'view'" class="btn btn-secondary" @click="closeModal">Tutup</button>
+          <template v-else>
+            <button type="button" class="btn btn-secondary" @click="closeModal" :disabled="isSaving">Batal</button>
+            <button type="submit" class="btn btn-primary" @click="handleSave" :disabled="isSaving">
+              <i v-if="isSaving" class="fas fa-spinner fa-spin"></i>
+              {{ isSaving ? 'Menyimpan...' : 'Simpan' }}
+            </button>
+          </template>
+        </div>
+      </div>
+    </div>
+  </div>
+</template>
 
 <style scoped>
 /* --- General Layout --- */

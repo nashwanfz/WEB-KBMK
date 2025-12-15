@@ -78,7 +78,7 @@ const closeModal = () => {
 // ======= AMBIL DATA DARI BACKEND =======
 const fetchSchedules = async () => {
   try {
-    const res = await axios.get('https://kbmk.unmul.ac.id/api/schedules')
+    const res = await axios.get('https://kbmk.unmul.ac.id/api/api/schedules')
     // pastikan struktur JSON dari backend seperti:
     // { "data": [ { id, nama, tanggal, deskripsi }, ... ] }
     activities.value = res.data.data

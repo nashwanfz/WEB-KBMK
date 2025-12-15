@@ -1,82 +1,75 @@
 <template>
   <div id="admin-wrapper" :class="{ 'sidebar-collapsed': isCollapsed }">
-    <!-- Sidebar -->
+    <!-- SIDEBAR -->
     <aside class="admin-sidebar">
       <div class="sidebar-header">
         <img :src="logoOrganisasi" alt="Logo" class="sidebar-logo" />
         <h3 v-if="!isCollapsed">Panel Admin</h3>
       </div>
 
-      <!-- SIDEBAR DENGAN MENU NAVIGASI BERDASARKAN ROLE -->
       <nav class="sidebar-menu">
-        <!-- Dashboard - Semua Role -->
-        <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminDashboard)" :class="{ active: activeComponent === SuperAdminDashboard }">
+        <!-- Dashboard (Semua role) -->
+        <a href="#" class="sidebar-link"
+          @click.prevent="navigateTo(SuperAdminDashboard)"
+          :class="{ active: activeComponent === SuperAdminDashboard }">
           <i class="fas fa-home"></i>
           <span v-if="!isCollapsed">Dashboard</span>
         </a>
 
-        <!-- Menu untuk Super Admin -->
+        <!-- SUPERADMIN -->
         <template v-if="userRole === 'superadmin'">
           <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaProfil)" :class="{ active: activeComponent === SuperAdminKelolaProfil }">
             <i class="fas fa-id-card"></i>
             <span v-if="!isCollapsed">Kelola Profil KBMK</span>
           </a>
-
-          <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaVisiMisi)" :class="{ active: activeComponent === SuperAdminKelolaVisiMisi }">
+          
+          <!-- PERBAIKAN: TAMBAHKAN MENU VISI & MISI DI SINI -->
+          <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminVisiMisi)" :class="{ active: activeComponent === SuperAdminVisiMisi }">
             <i class="fas fa-bullseye"></i>
             <span v-if="!isCollapsed">Kelola Visi & Misi</span>
           </a>
 
           <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaKalender)" :class="{ active: activeComponent === SuperAdminKelolaKalender }">
             <i class="fas fa-calendar-alt"></i>
-            <span v-if="!isCollapsed">Kelola Kalender Kegiatan</span>
+            <span v-if="!isCollapsed">Kelola Kalender</span>
           </a>
-
           <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaAnggota)" :class="{ active: activeComponent === SuperAdminKelolaAnggota }">
             <i class="fas fa-user-friends"></i>
             <span v-if="!isCollapsed">Kelola Pengurus</span>
           </a>
-
           <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaGform)" :class="{ active: activeComponent === SuperAdminKelolaGform }">
             <i class="fas fa-link"></i>
             <span v-if="!isCollapsed">Kelola Link GForm</span>
           </a>
-
           <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaSurat)" :class="{ active: activeComponent === SuperAdminKelolaSurat }">
             <i class="fas fa-file-alt"></i>
             <span v-if="!isCollapsed">Kelola Surat</span>
           </a>
         </template>
 
-        <!-- Menu untuk Admin (Sekretaris) -->
+        <!-- ADMIN -->
         <template v-if="userRole === 'admin'">
           <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaGform)" :class="{ active: activeComponent === SuperAdminKelolaGform }">
             <i class="fas fa-link"></i>
             <span v-if="!isCollapsed">Kelola Link GForm</span>
           </a>
-
-          <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaKegiatan)" :class="{ active: activeComponent === SuperAdminKelolaKegiatan }">
-            <i class="fas fa-tasks"></i>
-            <span v-if="!isCollapsed">Kelola Kegiatan KBMK</span>
-          </a>
-
           <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaSurat)" :class="{ active: activeComponent === SuperAdminKelolaSurat }">
             <i class="fas fa-file-alt"></i>
             <span v-if="!isCollapsed">Kelola Surat</span>
           </a>
         </template>
 
-        <!-- Menu untuk Koordinator Divisi (ID 1 = Media) -->
+        <!-- KOORDINATOR MEDIA -->
         <template v-if="userRole === 'koor_divisi' && userDivisionId === 1">
-          <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaKegiatan)" :class="{ active: activeComponent === SuperAdminKelolaKegiatan }">
+          <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaDokumentasi)" :class="{ active: activeComponent === SuperAdminKelolaDokumentasi }">
             <i class="fas fa-tasks"></i>
-            <span v-if="!isCollapsed">Kelola Kegiatan KBMK</span>
+            <span v-if="!isCollapsed">Kelola Dokumentasi</span>
           </a>
         </template>
 
-        <!-- Menu untuk Koordinator Divisi lainnya (ID 2 = Perlengkapan, dst) -->
+        <!-- KOORDINATOR LAIN -->
         <template v-if="userRole === 'koor_divisi' && userDivisionId !== 1">
-          <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminKelolaSurat)" :class="{ active: activeComponent === SuperAdminKelolaSurat }">
+          <a href="#" class="sidebar-link" @click.prevent="navigateTo(SuperAdminDisposisiSurat)" :class="{ active: activeComponent === SuperAdminDisposisiSurat }">
             <i class="fas fa-file-alt"></i>
             <span v-if="!isCollapsed">Disposisi Surat</span>
           </a>
@@ -84,30 +77,25 @@
       </nav>
     </aside>
 
-    <!-- Wrapper konten utama -->
+    <!-- MAIN -->
     <div class="admin-main-wrapper">
       <header class="admin-navbar">
-        <div class="navbar-left">
-          <button class="menu-toggle" @click="toggleSidebar">
-            <i class="fas fa-bars"></i>
-          </button>
-        </div>
+        <button class="menu-toggle" @click="toggleSidebar">
+          <i class="fas fa-bars"></i>
+        </button>
 
-        <div class="navbar-right">
-          <div class="dropdown" @click="toggleDropdown">
-            <button class="dropdown-toggle">
-              <i class="fas fa-user"></i> {{ userName }} ({{ userRole }}) <i class="fas fa-caret-down"></i>
-            </button>
-            
-            <div class="dropdown-menu" v-if="dropdownOpen">
-              <a href="#" @click.prevent="navigateTo(SuperAdminDashboard)">
-                <i class="fas fa-tachometer-alt"></i> Dashboard Admin
-              </a>
-              <div class="dropdown-divider"></div>
-              <a href="#" @click.prevent="handleLogoutClick" class="logout-link">
-                <i class="fas fa-sign-out-alt"></i> Logout
-              </a>
-            </div>
+        <div class="dropdown" @click="toggleDropdown">
+          <button class="dropdown-toggle">
+            {{ userName }} ({{ userRole }}) <i class="fas fa-caret-down"></i>
+          </button>
+
+          <div class="dropdown-menu" v-if="dropdownOpen">
+            <a href="#" @click.prevent="navigateTo(SuperAdminDashboard)">
+              Dashboard
+            </a>
+            <a href="#" @click.prevent="handleLogoutClick" class="logout-link">
+              Logout
+            </a>
           </div>
         </div>
       </header>
@@ -120,113 +108,46 @@
 </template>
 
 <script setup>
-import { ref, shallowRef, inject, onMounted } from 'vue'
-import axios from 'axios'
+import { ref, shallowRef, inject, computed } from 'vue'
 import logoOrganisasi from '@/assets/logo.png'
 
-// --- IMPORT SEMUA KOMPONEN HALAMAN ---
+// COMPONENTS
 import SuperAdminDashboard from './SuperAdminDashboard.vue'
 import SuperAdminKelolaProfil from './SuperAdminKelolaProfil.vue'
-import SuperAdminKelolaVisiMisi from './SuperAdminKelolaVisi.vue'
+// PERBAIKAN: TAMBAHKAN IMPORT VISI & MISI
+import SuperAdminVisiMisi from './SuperAdminKelolaVisi.vue'
 import SuperAdminKelolaKalender from './SuperAdminKelolaKalender.vue'
 import SuperAdminKelolaAnggota from './SuperAdminKelolaAnggota.vue'
 import SuperAdminKelolaGform from './SuperAdminKelolaGform.vue'
-import SuperAdminKelolaKegiatan from './SuperAdminKelolaKegiatan.vue'
 import SuperAdminKelolaSurat from './SuperAdminKelolaSurat.vue'
+// Tambahkan import lain jika diperlukan
+// import SuperAdminKelolaDokumentasi from './SuperAdminKelolaDokumentasi.vue'
+// import SuperAdminDisposisiSurat from './SuperAdminDisposisiSurat.vue'
 
-// --- STATE & FUNGSI NAVIGASI ---
+
+// AUTH (CARA BARU - INJECT OBJEK auth)
+const auth = inject('auth');
+
+// USER DATA (Menggunakan objek auth)
+const userRole = computed(() => auth.value?.user?.role || '')
+const userName = computed(() => auth.value?.user?.username || 'Admin')
+const userDivisionId = computed(() => auth.value?.user?.division_id || null)
+
+// UI STATE
 const isCollapsed = ref(false)
 const dropdownOpen = ref(false)
 const activeComponent = shallowRef(SuperAdminDashboard)
 
-// Data User dari API
-const userRole = ref('')
-const userName = ref('Loading...')
-const userDivisionId = ref(null)
-
-const auth = inject('auth')
-
+// UI ACTIONS
 const toggleSidebar = () => (isCollapsed.value = !isCollapsed.value)
 const toggleDropdown = () => (dropdownOpen.value = !dropdownOpen.value)
-
-const navigateTo = (component) => {
-  activeComponent.value = component
-}
+const navigateTo = (component) => (activeComponent.value = component)
 
 const handleLogoutClick = () => {
   if (confirm('Apakah Anda yakin ingin keluar?')) {
-    auth.logout()
+    auth.value.logout();
   }
 }
-
-// Fetch data user dari API /me
-const fetchUserData = async () => {
-  try {
-    // Cek dengan key yang benar: auth_token
-    const token = localStorage.getItem('auth_token')
-    
-    console.log('🔍 Checking token:', token ? 'Token found ✅' : 'Token NOT found ❌')
-    
-    if (!token) {
-      console.error('❌ Token tidak ditemukan di localStorage')
-      // Coba ambil dari user_data jika ada
-      const storedUserData = localStorage.getItem('user_data')
-      if (storedUserData) {
-        try {
-          const parsedData = JSON.parse(storedUserData)
-          console.log('📦 Using cached user_data:', parsedData)
-          userRole.value = parsedData.role || ''
-          userName.value = parsedData.username || 'Admin'
-          userDivisionId.value = parsedData.division_id || null
-          return
-        } catch (e) {
-          console.error('Error parsing user_data:', e)
-        }
-      }
-      userName.value = 'No Token'
-      return
-    }
-
-    console.log('📡 Fetching user data from API...')
-    
-    const response = await axios.get('https://kbmk.unmul.ac.id/api/me', {
-      headers: {
-        'Authorization': `Bearer ${token}`
-      }
-    })
-
-    console.log('✅ API Response:', response.data)
-
-    const userData = response.data.data
-    
-    // Set data user
-    userRole.value = userData.role || ''
-    userName.value = userData.username || 'Admin'
-    userDivisionId.value = userData.division_id || null
-
-    console.log('===== USER DATA DEBUG =====')
-    console.log('Full User Data:', userData)
-    console.log('User Role:', userRole.value)
-    console.log('User Name:', userName.value)
-    console.log('User Division ID:', userDivisionId.value)
-    console.log('===========================')
-    
-    // Simpan ke localStorage juga untuk cache
-    localStorage.setItem('user_data', JSON.stringify(userData))
-    
-  } catch (error) {
-    console.error('❌ Error fetching user data:', error)
-    console.error('Error response:', error.response?.data)
-    console.error('Error status:', error.response?.status)
-    userName.value = 'Error'
-    userRole.value = 'error'
-  }
-}
-
-// Fetch user data saat component dimount
-onMounted(() => {
-  fetchUserData()
-})
 </script>
 
 <style>

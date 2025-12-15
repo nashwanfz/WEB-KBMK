@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
 
+// PERBAIKAN: Inject objek auth secara keseluruhan
 const auth = inject('auth');
 
 // --- STATE ---
@@ -77,7 +78,6 @@ const formatDate = (dateString) => {
 }
 
 const getDivisionName = (anggota) => {
-  // Cek apakah ada objek division
   if (anggota.division && anggota.division.nama) {
     return anggota.division.nama
   }
@@ -97,15 +97,13 @@ const openModal = (mode, anggota = null) => {
       foto_url: null 
     }
   } else {
-    // Copy data anggota, pastikan division_id terisi
     formData.value = { 
       ...anggota, 
       division_id: anggota.division_id || null,
       foto: null,
       foto_url: anggota.foto || anggota.foto_url 
     }
-    
-    console.log('📝 Form Data:', formData.value) // Debug
+    console.log('📝 Form Data:', formData.value)
   }
   showModal.value = true
 }
@@ -116,8 +114,14 @@ const closeModal = () => {
 
 // --- API METHODS ---
 const fetchDivisions = async () => {
+  // PERBAIKAN: Tambahkan pemeriksaan keamanan
+  if (!auth || !auth.value || !auth.value.api) {
+    console.error("Auth atau API tidak tersedia saat fetchDivisions");
+    return;
+  }
+
   try {
-    const response = await auth.api.get('/divisions')
+    const response = await auth.value.api.get('/divisions')
     divisionsList.value = response.data.data
     console.log('✅ Divisions loaded:', divisionsList.value)
   } catch (err) {
@@ -127,9 +131,15 @@ const fetchDivisions = async () => {
 }
 
 const fetchPengurus = async () => {
+  // PERBAIKAN: Tambahkan pemeriksaan keamanan
+  if (!auth || !auth.value || !auth.value.api) {
+    console.error("Auth atau API tidak tersedia saat fetchPengurus");
+    return;
+  }
+
   isLoading.value = true
   try {
-    const response = await auth.api.get('/pengurus')
+    const response = await auth.value.api.get('/pengurus')
     pengurusList.value = response.data.data
     console.log('✅ Pengurus loaded:', pengurusList.value)
   } catch (err) {
@@ -141,7 +151,6 @@ const fetchPengurus = async () => {
 }
 
 const handleSave = async () => {
-  // Validasi
   if (!formData.value.nama || !formData.value.division_id || !formData.value.deskripsi) {
     showNotification('Nama, Divisi, dan Deskripsi wajib diisi!', 'error')
     return
@@ -161,13 +170,13 @@ const handleSave = async () => {
 
     let response
     if (modalMode.value === 'create') {
-      response = await auth.api.post('/pengurus', dataToSend, { 
+      response = await auth.value.api.post('/pengurus', dataToSend, { 
         headers: { 'Content-Type': 'multipart/form-data' } 
       })
       showNotification('Anggota berhasil ditambahkan!', 'success')
     } else if (modalMode.value === 'edit') {
       dataToSend.append('_method', 'PUT')
-      response = await auth.api.post(`/pengurus/${formData.value.id}`, dataToSend, { 
+      response = await auth.value.api.post(`/pengurus/${formData.value.id}`, dataToSend, { 
         headers: { 'Content-Type': 'multipart/form-data' } 
       })
       showNotification('Data anggota berhasil diperbarui!', 'success')
@@ -195,7 +204,7 @@ const handleDelete = async (anggota) => {
   }
   isDeleting.value = true
   try {
-    await auth.api.delete(`/pengurus/${anggota.id}`)
+    await auth.value.api.delete(`/pengurus/${anggota.id}`)
     showNotification('Anggota berhasil dihapus.', 'success')
     await fetchPengurus()
   } catch (error) {
@@ -227,9 +236,10 @@ onMounted(() => {
 })
 </script>
 
+<!-- PERBAIKAN: Gunakan pemeriksaan berlapis di template -->
+<!-- PERBAIKAN: Gunakan optional chaining untuk pemeriksaan yang lebih andal -->
 <template>
   <div class="kelola-anggota-container">
-    <!-- Notifikasi -->
     <div v-if="notification.show" :class="['notification', notification.type]">
       <i :class="notification.icon"></i>
       <span>{{ notification.message }}</span>
@@ -240,7 +250,8 @@ onMounted(() => {
 
     <div class="page-header">
       <h1>Kelola Anggota</h1>
-      <button v-if="auth.isSuperAdmin" class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
+      <!-- PERBAIKAN: Gunakan optional chaining ?. -->
+      <button v-if="auth.value?.user?.role === 'superadmin'" class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
         <i class="fas fa-plus"></i> Tambah Anggota Baru
       </button>
     </div>
@@ -276,13 +287,14 @@ onMounted(() => {
             <td>{{ getDivisionName(anggota) }}</td>
             <td>{{ formatDate(anggota.created_at) }}</td>
             <td class="action-buttons">
-              <button v-if="auth.isSuperAdmin" class="btn-icon btn-view" @click="openModal('view', anggota)" title="Lihat Detail">
+              <!-- PERBAIKAN: Gunakan optional chaining ?. -->
+              <button v-if="auth.value?.user?.role === 'superadmin'" class="btn-icon btn-view" @click="openModal('view', anggota)" title="Lihat Detail">
                 <i class="fas fa-eye"></i>
               </button>
-              <button v-if="auth.isSuperAdmin" class="btn-icon btn-edit" @click="openModal('edit', anggota)" title="Edit">
+              <button v-if="auth.value?.user?.role === 'superadmin'" class="btn-icon btn-edit" @click="openModal('edit', anggota)" title="Edit">
                 <i class="fas fa-edit"></i>
               </button>
-              <button v-if="auth.isSuperAdmin" class="btn-icon btn-delete" @click="handleDelete(anggota)" title="Hapus" :disabled="isDeleting">
+              <button v-if="auth.value?.user?.role === 'superadmin'" class="btn-icon btn-delete" @click="handleDelete(anggota)" title="Hapus" :disabled="isDeleting">
                 <i class="fas fa-trash"></i>
               </button>
             </td>

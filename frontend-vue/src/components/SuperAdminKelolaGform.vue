@@ -1,8 +1,8 @@
 <script setup>
 import { ref, computed, onMounted, inject } from 'vue'
 
-// --- INTEGRASI API ---
-// Inject data autentikasi dari App.vue
+// --- PERBAIKAN: INTEGRASI API ---
+// Inject objek auth secara keseluruhan dari App.vue
 const auth = inject('auth');
 
 // --- STATE ---
@@ -68,13 +68,20 @@ const closeModal = () => {
   validationErrors.value = {}
 }
 
-// --- API METHODS (MENGGUNAKAN auth.api) ---
+// --- API METHODS ---
 const fetchLinks = async () => {
+  // PERBAIKAN: Tambahkan pemeriksaan keamanan
+  if (!auth || !auth.value || !auth.value.api) {
+    console.error("Auth atau API tidak tersedia saat fetchLinks");
+    return;
+  }
+
   isLoading.value = true
   error.value = null
   try {
-    const response = await auth.api.get('/links')
+    const response = await auth.value.api.get('/links')
     gformList.value = response.data.data
+    console.log('Data links yang dimuat:', gformList.value);
   } catch (err) {
     console.error('Error fetching links:', err)
     error.value = err.response?.data?.message || 'Gagal memuat data. Periksa izin Anda.'
@@ -87,7 +94,7 @@ const createLink = async (linkData) => {
   isSaving.value = true
   validationErrors.value = {}
   try {
-    const response = await auth.api.post('/links', linkData)
+    const response = await auth.value.api.post('/links', linkData)
     gformList.value.push(response.data.data)
     closeModal()
     showNotification('Link GForm berhasil ditambahkan!', 'success')
@@ -109,7 +116,7 @@ const updateLink = async (id, linkData) => {
   isSaving.value = true
   validationErrors.value = {}
   try {
-    const response = await auth.api.put(`/links/${id}`, linkData)
+    const response = await auth.value.api.put(`/links/${id}`, linkData)
     const index = gformList.value.findIndex(g => g.id === id)
     if (index !== -1) {
       gformList.value[index] = response.data.data
@@ -132,7 +139,7 @@ const updateLink = async (id, linkData) => {
 
 const deleteLink = async (id) => {
   try {
-    await auth.api.delete(`/links/${id}`)
+    await auth.value.api.delete(`/links/${id}`)
     const index = gformList.value.findIndex(g => g.id === id)
     if (index !== -1) {
       gformList.value.splice(index, 1)
@@ -170,9 +177,10 @@ onMounted(() => {
 })
 </script>
 
+<!-- PERBAIKAN: Gunakan pemeriksaan berlapis di template -->
+<!-- PERBAIKAN: Gunakan optional chaining untuk pemeriksaan yang lebih andal -->
 <template>
   <div class="kelola-gform-container">
-    <!-- Notifikasi Sederhana -->
     <div v-if="notification.show" :class="['notification', notification.type]">
       <i :class="notification.icon"></i>
       <span>{{ notification.message }}</span>
@@ -183,8 +191,8 @@ onMounted(() => {
 
     <div class="page-header">
       <h1>Kelola Link GForm</h1>
-      <!-- Tombol Tambah hanya muncul untuk Admin & Superadmin -->
-      <button v-if="auth.isAdmin" class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
+      <!-- PERBAIKAN: Gunakan optional chaining ?. dan periksa untuk 'admin' atau 'superadmin' -->
+      <button v-if="auth.value?.user?.role === 'admin' || auth.value?.user?.role === 'superadmin'" class="btn btn-primary" @click="openModal('create')" :disabled="isLoading">
         <i class="fas fa-plus"></i> Tambah Link Baru
       </button>
     </div>
@@ -221,11 +229,11 @@ onMounted(() => {
               </a>
             </td>
             <td class="action-buttons">
-              <!-- PERUBAHAN KRUSIAL: Tombol Edit & Hapus hanya untuk Admin -->
-              <button v-if="auth.isAdmin" class="btn-icon btn-edit" @click="openModal('edit', gform)" title="Edit">
+              <!-- PERBAIKAN: Gunakan optional chaining ?. dan periksa untuk 'admin' atau 'superadmin' -->
+              <button v-if="auth.value?.user?.role === 'admin' || auth.value?.user?.role === 'superadmin'" class="btn-icon btn-edit" @click="openModal('edit', gform)" title="Edit">
                 <i class="fas fa-edit"></i>
               </button>
-              <button v-if="auth.isAdmin" class="btn-icon btn-delete" @click="handleDelete(gform)" title="Hapus" :disabled="isDeleting">
+              <button v-if="auth.value?.user?.role === 'admin' || auth.value?.user?.role === 'superadmin'" class="btn-icon btn-delete" @click="handleDelete(gform)" title="Hapus" :disabled="isDeleting">
                 <i class="fas fa-trash"></i>
               </button>
             </td>

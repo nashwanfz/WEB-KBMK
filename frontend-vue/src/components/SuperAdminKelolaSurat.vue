@@ -1,4 +1,248 @@
+<script setup>
+import { ref, computed, onMounted, inject } from 'vue'
+
+// --- INJECT YANG BENAR (SESUAI app.vue) ---
+const auth = inject('auth');
+
+// --- STATE ---
+const suratList = ref([])
+const loading = ref(false)
+const searchQuery = ref('')
+const statusFilter = ref('')
+const showModal = ref(false)
+const modalMode = ref('view')
+
+const formData = ref({
+  id: null,
+  status: '',
+  catatan: '',
+  surat_request: {}
+})
+
+const updateStatusForm = ref({
+  status: '',
+  catatan: ''
+})
+
+const showPdfModal = ref(false)
+const pdfBlobUrl = ref(null)
+
+// --- COMPUTED ---
+const userRole = computed(() => auth.value?.user?.role || '')
+
+const fetchSurat = async () => {
+  // Gunakan API client dari objek auth
+  if (!auth.value?.api) {
+    console.error("API client tidak ditemukan di objek auth.");
+    return;
+  }
+
+  loading.value = true
+  let endpoint = '';
+  
+  if (userRole.value === 'admin') {
+    endpoint = '/surat-requests';
+  } else if (userRole.value === 'koor_divisi') {
+    endpoint = '/my-dispositions';
+  } else {
+    console.error('Role tidak dikenali:', userRole.value);
+    loading.value = false;
+    return;
+  }
+
+  try {
+    // Kita tidak perlu menambahkan header manual lagi, karena auth.value.api sudah mengaturnya
+    const response = await auth.value.api.get(endpoint)
+    suratList.value = response.data.data
+  } catch (error) {
+    console.error('Error fetching surat:', error)
+    const message = error.response?.data?.message || 'Gagal memuat data surat. Silakan coba lagi.';
+    alert(message)
+  } finally {
+    loading.value = false
+  }
+}
+
+// ... (sisa fungsi computed dan methods lainnya tidak perlu diubah, 
+//     karena mereka hanya menggunakan state yang sudah ada)
+//     Saya akan menyalinnya kembali untuk kelengkapan.
+
+const displayData = computed(() => {
+  if (userRole.value === 'koor_divisi') {
+    return suratList.value;
+  }
+
+  if (userRole.value === 'admin') {
+    const flattenedDispositions = [];
+    suratList.value.forEach(suratRequest => {
+      if (suratRequest.dispositions && suratRequest.dispositions.length > 0) {
+        suratRequest.dispositions.forEach(disposition => {
+          flattenedDispositions.push({
+            ...disposition,
+            surat_request: suratRequest
+          });
+        });
+      } else {
+        flattenedDispositions.push({
+            id: `req-${suratRequest.id}`,
+            status: suratRequest.status,
+            catatan: null,
+            assigned_to: null,
+            surat_request: suratRequest
+        });
+      }
+    });
+    return flattenedDispositions;
+  }
+
+  return [];
+});
+
+const filteredSurat = computed(() => {
+  let result = displayData.value
+  
+  if (statusFilter.value) {
+    result = result.filter(item => item.status === statusFilter.value)
+  }
+  
+  if (searchQuery.value) {
+    const query = searchQuery.value.toLowerCase()
+    result = result.filter(item =>
+      item.surat_request?.nama_pengirim?.toLowerCase().includes(query) ||
+      item.surat_request?.perihal?.toLowerCase().includes(query) ||
+      item.surat_request?.tujuan?.toLowerCase().includes(query) ||
+      (item.surat_request?.asal_instansi && item.surat_request.asal_instansi.toLowerCase().includes(query))
+    )
+  }
+  
+  return result
+})
+
+const totalSurat = computed(() => displayData.value.length)
+const totalPending = computed(() => displayData.value.filter(d => d.status === 'diteruskan' || d.status === 'belum dibaca').length)
+const totalProcessing = computed(() => displayData.value.filter(d => d.status === 'diproses').length)
+const totalCompleted = computed(() => displayData.value.filter(d => d.status === 'selesai').length)
+
+const modalTitle = computed(() => {
+  switch (modalMode.value) {
+    case 'view': return 'Detail Surat'
+    case 'updateStatus': return 'Ubah Status Surat'
+    default: return 'Form Surat'
+  }
+})
+
+const openModal = (mode, disposition = null) => {
+  modalMode.value = mode
+  if (mode === 'view' && disposition) {
+    formData.value = { ...disposition }
+  } else if (mode === 'updateStatus' && disposition) {
+    formData.value = { ...disposition }
+    updateStatusForm.value = { status: disposition.status, catatan: disposition.catatan || '' }
+  }
+  showModal.value = true
+}
+
+const closeModal = () => {
+  showModal.value = false
+}
+
+const handleUpdateStatus = async () => {
+  try {
+    if (typeof formData.value.id === 'string' && formData.value.id.startsWith('req-')) {
+        alert('Tidak dapat mengubah status surat yang belum ditugaskan.');
+        return;
+    }
+
+    // Gunakan API client dari objek auth
+    await auth.value.api.patch(`/surat-dispositions/${formData.value.id}/status`, updateStatusForm.value)
+    
+    alert('Status berhasil diperbarui!')
+    closeModal()
+    fetchSurat();
+
+  } catch (error) {
+    console.error('Error updating status:', error)
+    const message = error.response?.data?.message || 'Gagal memperbarui status. Silakan coba lagi.';
+    alert(message)
+  }
+}
+
+const downloadFile = (disposition) => {
+  if (disposition.surat_request?.file_surat) {
+    window.open(`https://kbmk.unmul.ac.id/api/storage/${disposition.surat_request.file_surat}`, '_blank')
+  } else {
+    alert('Tidak ada file yang tersedia untuk surat ini.')
+  }
+}
+
+const getFileUrl = (filePath) => {
+  if (!filePath) return '#'
+  return `https://kbmk.unmul.ac.id/api/files/${filePath}`
+}
+
+const openPdfModal = async (filePath) => {
+  if (filePath) {
+    const fullUrl = getFileUrl(filePath);
+    try {
+      const response = await fetch(fullUrl);
+      if (!response.ok) throw new Error('Gagal mengambil file.');
+      const blob = await response.blob();
+      
+      if (pdfBlobUrl.value) URL.revokeObjectURL(pdfBlobUrl.value);
+      pdfBlobUrl.value = URL.createObjectURL(blob);
+      showPdfModal.value = true;
+    } catch (error) {
+      console.error('Error fetching PDF:', error);
+      alert('Gagal memuat file untuk ditampilkan.');
+    }
+  } else {
+    alert('Tidak ada file yang tersedia untuk surat ini.');
+  }
+};
+
+const closePdfModal = () => {
+  showPdfModal.value = false;
+  if (pdfBlobUrl.value) {
+    URL.revokeObjectURL(pdfBlobUrl.value);
+    pdfBlobUrl.value = null;
+  }
+};
+
+const getStatusClass = (status) => {
+  switch (status) {
+    case 'belum dibaca':
+    case 'diteruskan': return 'forwarded'
+    case 'diproses': return 'processing'
+    case 'selesai': return 'completed'
+    default: return ''
+  }
+}
+
+const formatStatus = (status) => {
+  switch (status) {
+    case 'belum dibaca': 
+    case 'diteruskan': return 'Diteruskan'
+    case 'pending': return 'Menunggu Penugasan'
+    case 'diproses': return 'Diproses'
+    case 'selesai': return 'Selesai'
+    default: return status
+  }
+}
+
+const formatDate = (dateString) => {
+  const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }
+  return new Date(dateString).toLocaleDateString('id-ID', options)
+}
+
+// --- LIFECYCLE ---
+onMounted(() => {
+  fetchSurat();
+})
+</script>
+
+<!-- Template tidak perlu diubah, tetap sama -->
 <template>
+  <!-- ... (template Anda tidak berubah) ... -->
   <div class="kelola-surat-container">
     <div class="page-header">
       <h1>Kelola Surat Disposisi</h1>
@@ -67,7 +311,6 @@
         </thead>
         <tbody>
           <tr v-for="disposition in filteredSurat" :key="disposition.id">
-            <!-- 👇 PERBAIKAN: Ganti 'suratRequest' menjadi 'surat_request' -->
             <td>{{ disposition.surat_request?.nomor_surat || '-' }}</td>
             <td>{{ disposition.surat_request?.nama_pengirim || '-' }}</td>
             <td>{{ disposition.surat_request?.perihal || '-' }}</td>
@@ -119,7 +362,6 @@
           <div v-if="modalMode === 'view'">
             <div class="detail-section">
               <h4>Informasi Surat</h4>
-              <!-- 👇 PERBAIKAN: Ganti 'suratRequest' menjadi 'surat_request' -->
               <div class="detail-row">
                 <span class="label">Nomor Surat:</span>
                 <span class="value">{{ formData.surat_request?.nomor_surat }}</span>
@@ -214,248 +456,6 @@
     </div>
   </div>
 </template>
-
-<script setup>
-import { ref, computed, onMounted } from 'vue'
-import apiClient from '@/api/axios.js'
-
-// --- STATE ---
-const suratList = ref([])
-const userRole = ref('')
-const loading = ref(false)
-const searchQuery = ref('')
-const statusFilter = ref('')
-const showModal = ref(false)
-const modalMode = ref('view')
-
-// 👇 PERBAIKAN: Ganti 'suratRequest' menjadi 'surat_request'
-const formData = ref({
-  id: null,
-  status: '',
-  catatan: '',
-  surat_request: {}
-})
-
-const updateStatusForm = ref({
-  status: '',
-  catatan: ''
-})
-
-const showPdfModal = ref(false)
-const pdfBlobUrl = ref(null)
-
-// --- METHODS ---
-const fetchUserData = async () => {
-  try {
-    const response = await apiClient.get('/me');
-    userRole.value = response.data.data.role; 
-  } catch (error) {
-    console.error('Gagal mengambil data user:', error);
-  }
-};
-
-const fetchSurat = async () => {
-  loading.value = true
-  let endpoint = '';
-  
-  if (userRole.value === 'admin') {
-    endpoint = '/surat-requests';
-  } else if (userRole.value === 'koor_divisi') {
-    endpoint = '/my-dispositions';
-  } else {
-    console.error('Role tidak dikenali:', userRole.value);
-    loading.value = false;
-    return;
-  }
-
-  try {
-    const response = await apiClient.get(endpoint)
-    suratList.value = response.data.data
-  } catch (error) {
-    console.error('Error fetching surat:', error)
-    alert('Gagal memuat data surat. Silakan coba lagi.')
-  } finally {
-    loading.value = false
-  }
-}
-
-// --- COMPUTED ---
-const displayData = computed(() => {
-  if (userRole.value === 'koor_divisi') {
-    return suratList.value;
-  }
-
-  if (userRole.value === 'admin') {
-    const flattenedDispositions = [];
-    suratList.value.forEach(suratRequest => {
-      if (suratRequest.dispositions && suratRequest.dispositions.length > 0) {
-        suratRequest.dispositions.forEach(disposition => {
-          // 👇 PERBAIKAN: Ganti 'suratRequest' menjadi 'surat_request'
-          flattenedDispositions.push({
-            ...disposition,
-            surat_request: suratRequest
-          });
-        });
-      } else {
-        flattenedDispositions.push({
-            id: `req-${suratRequest.id}`,
-            status: suratRequest.status,
-            catatan: null,
-            assigned_to: null,
-            // 👇 PERBAIKAN: Ganti 'suratRequest' menjadi 'surat_request'
-            surat_request: suratRequest
-        });
-      }
-    });
-    return flattenedDispositions;
-  }
-
-  return [];
-});
-
-const filteredSurat = computed(() => {
-  let result = displayData.value
-  
-  if (statusFilter.value) {
-    result = result.filter(item => item.status === statusFilter.value)
-  }
-  
-  if (searchQuery.value) {
-    const query = searchQuery.value.toLowerCase()
-    result = result.filter(item =>
-      // 👇 PERBAIKAN: Ganti 'suratRequest' menjadi 'surat_request'
-      item.surat_request?.nama_pengirim?.toLowerCase().includes(query) ||
-      item.surat_request?.perihal?.toLowerCase().includes(query) ||
-      item.surat_request?.tujuan?.toLowerCase().includes(query) ||
-      (item.surat_request?.asal_instansi && item.surat_request.asal_instansi.toLowerCase().includes(query))
-    )
-  }
-  
-  return result
-})
-
-const totalSurat = computed(() => displayData.value.length)
-const totalPending = computed(() => displayData.value.filter(d => d.status === 'diteruskan' || d.status === 'belum dibaca').length)
-const totalProcessing = computed(() => displayData.value.filter(d => d.status === 'diproses').length)
-const totalCompleted = computed(() => displayData.value.filter(d => d.status === 'selesai').length)
-
-const modalTitle = computed(() => {
-  switch (modalMode.value) {
-    case 'view': return 'Detail Surat'
-    case 'updateStatus': return 'Ubah Status Surat'
-    default: return 'Form Surat'
-  }
-})
-
-const openModal = (mode, disposition = null) => {
-  modalMode.value = mode
-  if (mode === 'view' && disposition) {
-    formData.value = { ...disposition }
-  } else if (mode === 'updateStatus' && disposition) {
-    formData.value = { ...disposition }
-    updateStatusForm.value = { status: disposition.status, catatan: disposition.catatan || '' }
-  }
-  showModal.value = true
-}
-
-const closeModal = () => {
-  showModal.value = false
-}
-
-const handleUpdateStatus = async () => {
-  try {
-    if (typeof formData.value.id === 'string' && formData.value.id.startsWith('req-')) {
-        alert('Tidak dapat mengubah status surat yang belum ditugaskan.');
-        return;
-    }
-
-    await apiClient.patch(`/surat-dispositions/${formData.value.id}/status`, updateStatusForm.value)
-    
-    alert('Status berhasil diperbarui!')
-    closeModal()
-    fetchSurat();
-
-  } catch (error) {
-    console.error('Error updating status:', error)
-    const message = error.response?.data?.message || 'Gagal memperbarui status. Silakan coba lagi.';
-    alert(message)
-  }
-}
-
-const downloadFile = (disposition) => {
-  // 👇 PERBAIKAN: Ganti 'suratRequest' menjadi 'surat_request'
-  if (disposition.surat_request?.file_surat) {
-    window.open(`https://kbmk.unmul.ac.id/api/storage/${disposition.surat_request.file_surat}`, '_blank')
-  } else {
-    alert('Tidak ada file yang tersedia untuk surat ini.')
-  }
-}
-
-const getFileUrl = (filePath) => {
-  if (!filePath) return '#'
-  return `https://kbmk.unmul.ac.id/api/files/${filePath}`
-}
-
-const openPdfModal = async (filePath) => {
-  if (filePath) {
-    const fullUrl = getFileUrl(filePath);
-    try {
-      const response = await fetch(fullUrl);
-      if (!response.ok) throw new Error('Gagal mengambil file.');
-      const blob = await response.blob();
-      
-      if (pdfBlobUrl.value) URL.revokeObjectURL(pdfBlobUrl.value);
-      pdfBlobUrl.value = URL.createObjectURL(blob);
-      showPdfModal.value = true;
-    } catch (error) {
-      console.error('Error fetching PDF:', error);
-      alert('Gagal memuat file untuk ditampilkan.');
-    }
-  } else {
-    alert('Tidak ada file yang tersedia untuk surat ini.');
-  }
-};
-
-const closePdfModal = () => {
-  showPdfModal.value = false;
-  if (pdfBlobUrl.value) {
-    URL.revokeObjectURL(pdfBlobUrl.value);
-    pdfBlobUrl.value = null;
-  }
-};
-
-const getStatusClass = (status) => {
-  switch (status) {
-    case 'belum dibaca':
-    case 'diteruskan': return 'forwarded'
-    case 'diproses': return 'processing'
-    case 'selesai': return 'completed'
-    default: return ''
-  }
-}
-
-const formatStatus = (status) => {
-  switch (status) {
-    case 'belum dibaca': 
-    case 'diteruskan': return 'Diteruskan'
-    case 'pending': return 'Menunggu Penugasan'
-    case 'diproses': return 'Diproses'
-    case 'selesai': return 'Selesai'
-    default: return status
-  }
-}
-
-const formatDate = (dateString) => {
-  const options = { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' }
-  return new Date(dateString).toLocaleDateString('id-ID', options)
-}
-
-// --- LIFECYCLE ---
-onMounted(async () => {
-  await fetchUserData();
-  fetchSurat();
-})
-</script>
 
 <style scoped>
 /* ... (semua style tetap sama) ... */

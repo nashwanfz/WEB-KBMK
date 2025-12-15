@@ -54,7 +54,7 @@ const error = ref(null);
 
 const fetchLinks = async () => {
   try {
-    const response = await axios.get('https://kbmk.unmul.ac.id/api/links');
+    const response = await axios.get('https://kbmk.unmul.ac.id/api/api/links');
     
     let fetchedLinks = [];
     if (response.data && response.data.data) {

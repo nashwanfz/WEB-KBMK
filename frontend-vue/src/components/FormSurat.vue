@@ -103,7 +103,7 @@ const kirimSurat = async () => {
     });
     
     // Kirim ke API dengan URL lengkap
-    const response = await axios.post('https://kbmk.unmul.ac.id/api/surat-requests', dataToSend, {
+    const response = await axios.post('https://kbmk.unmul.ac.id/api/api/surat-requests', dataToSend, {
       headers: {
         'Content-Type': 'multipart/form-data'
       }
