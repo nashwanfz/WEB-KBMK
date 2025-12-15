@@ -48,7 +48,7 @@ const getDivisionPriority = (divisionName) => {
 // Ambil data pengurus
 onMounted(async () => {
   try {
-    const res = await axios.get("https://kbmk.unmul.ac.id/api/pengurus");
+    const res = await axios.get("https://kbmk.unmul.ac.id/api/api/pengurus");
     const data = res.data.data;
 
     // Kelompokkan pengurus berdasarkan division.nama

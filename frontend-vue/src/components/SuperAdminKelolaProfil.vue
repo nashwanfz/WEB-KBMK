@@ -1,36 +1,146 @@
+<script setup>
+import { ref, computed, onMounted, inject } from 'vue'
+
+// --- INJECT DATA DARI APP.VUE ---
+const auth = inject('auth');
+
+// --- STATE UNTUK PROFIL ---
+const profil = ref({ id: null, judul: '', deskripsi: '' })
+const isLoading = ref(false)
+const errorMessage = ref('')
+const showModal = ref(false)
+const isSaving = ref(false)
+const formData = ref({ id: null, judul: '', deskripsi: '' })
+
+// --- COMPUTED ---
+const modalTitle = computed(() => {
+  return profil.value.id ? 'Edit Profil KBMK' : 'Tambah Profil KBMK'
+})
+
+const isProfilEmpty = computed(() => {
+  return !profil.value.judul && !profil.value.deskripsi;
+})
+
+// --- METHODS ---
+const openModal = (mode) => {
+  formData.value = { ...profil.value };
+  showModal.value = true;
+}
+
+const closeModal = () => {
+  showModal.value = false;
+  errorMessage.value = '';
+}
+
+// --- API METHODS (MENGGUNAKAN auth.value.api) ---
+const fetchProfil = async () => {
+  isLoading.value = true;
+  errorMessage.value = '';
+  
+  try {
+    // PERBAIKAN: Gunakan auth.value.api untuk mengakses instance axios
+    const response = await auth.value.api.get('/profile-descs');
+    const allProfiles = response.data.data;
+
+    const aboutProfile = allProfiles.find(item => item.jenis === 'about');
+
+    if (aboutProfile) {
+      profil.value = aboutProfile;
+    } else {
+      profil.value = { id: null, judul: '', deskripsi: '' };
+    }
+  } catch (err) {
+    console.error('Error fetching profile:', err);
+    errorMessage.value = err.response?.data?.message || 'Gagal memuat data profil. Silakan coba lagi.';
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+const handleSave = async () => {
+  isSaving.value = true;
+  errorMessage.value = '';
+
+  try {
+    const payload = {
+      judul: formData.value.judul,
+      deskripsi: formData.value.deskripsi,
+      jenis: 'about'
+    };
+
+    let response;
+    if (profil.value.id) {
+      // PERBAIKAN: Gunakan auth.value.api
+      response = await auth.value.api.put(`/profile-descs/${profil.value.id}`, payload);
+    } else {
+      // PERBAIKAN: Gunakan auth.value.api
+      response = await auth.value.api.post('/profile-descs', payload);
+    }
+
+    profil.value = response.data.data;
+    
+    closeModal();
+    alert('Profil KBMK berhasil disimpan!');
+  } catch (err) {
+    console.error('Error saving profile:', err);
+    if (err.response?.status === 422 && err.response.data.errors) {
+      const errors = err.response.data.errors;
+      let errorMsg = 'Terjadi kesalahan validasi:\n';
+      for (const field in errors) {
+        errorMsg += `${errors[field].join(', ')}\n`;
+      }
+      errorMessage.value = errorMsg;
+    } else {
+      errorMessage.value = err.response?.data?.message || 'Gagal menyimpan profil. Periksa izin Anda.';
+    }
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+// Load data saat komponen pertama kali dimuat
+onMounted(() => {
+  fetchProfil();
+  
+  // DEBUG: Tambahkan ini untuk memeriksa nilai auth
+  console.log('Auth value:', auth.value);
+  console.log('User role:', auth.value?.user?.role);
+  console.log('Is admin:', auth.value?.isAdmin);
+  console.log('Is superadmin:', auth.value?.isSuperAdmin);
+})
+</script>
+
+<!-- Template tidak perlu diubah, Vue akan otomatis membuka .value di dalam template -->
 <template>
   <div class="profil-container">
     <div class="page-header">
       <h1>Profil KBMK</h1>
-      <!-- Tombol Edit hanya muncul untuk Admin & Superadmin -->
-      <button v-if="auth.isAdmin" class="btn btn-primary" @click="openModal('edit')">
+      <!-- PERBAIKAN: Gunakan auth.value.isAdmin (tanpa .value tambahan) -->
+      <button v-if="auth.value && auth.value.isAdmin" class="btn btn-primary" @click="openModal('edit')">
         <i class="fas fa-edit"></i> Edit Profil
       </button>
     </div>
 
-    <!-- Tampilkan indikator loading -->
     <div v-if="isLoading" class="loading-indicator">
       <i class="fas fa-spinner fa-spin"></i> Memuat data...
     </div>
 
-    <!-- Tampilkan pesan error jika ada -->
     <div v-else-if="errorMessage" class="error-message">
       <i class="fas fa-exclamation-circle"></i> {{ errorMessage }}
       <button class="btn btn-primary" @click="fetchProfil">Coba Lagi</button>
     </div>
 
-    <!-- Tampilkan konten hanya jika tidak loading dan tidak ada error -->
     <div v-else class="profil-content">
-      <!-- Tampilkan pesan jika data profil kosong -->
       <div v-if="isProfilEmpty" class="empty-state">
         <i class="fas fa-info-circle"></i>
         <p>Profil KBMK belum ditambahkan.</p>
-        <button v-if="auth.isAdmin" class="btn btn-primary" @click="openModal('edit')">
+        
+        <!-- PERBAIKAN 2: Tambahkan safety check `auth.value &&` -->
+        <button v-if="auth.value && auth.value.isAdmin" class="btn btn-primary" @click="openModal('edit')">
           <i class="fas fa-plus"></i> Tambah Profil Sekarang
         </button>
       </div>
 
-      <!-- Tampilkan data profil jika ada -->
       <div v-else>
         <h2>{{ profil.judul }}</h2>
         <div class="profil-description">
@@ -38,6 +148,7 @@
         </div>
       </div>
     </div>
+
 
     <!-- Modal untuk Edit/Tambah Profil -->
     <div v-if="showModal" class="modal-overlay" @click="closeModal">
@@ -86,119 +197,6 @@
     </div>
   </div>
 </template>
-
-<script setup>
-import { ref, computed, onMounted, inject } from 'vue'
-
-// --- PERUBAHAN 1: INJECT DATA DARI APP.VUE ---
-const auth = inject('auth');
-
-// --- STATE UNTUK PROFIL (Disederhanakan) ---
-const profil = ref({ id: null, judul: '', deskripsi: '' })
-const isLoading = ref(false)
-const errorMessage = ref('')
-const showModal = ref(false)
-const isSaving = ref(false)
-const formData = ref({ id: null, judul: '', deskripsi: '' })
-
-// --- COMPUTED ---
-const modalTitle = computed(() => {
-  // Judul modal dinamis berdasarkan apakah data sudah ada atau belum
-  return profil.value.id ? 'Edit Profil KBMK' : 'Tambah Profil KBMK'
-})
-
-// PERUBAHAN: Computed property untuk mengecek apakah profil kosong
-const isProfilEmpty = computed(() => {
-  // Profil dianggap kosong jika tidak ada judul atau deskripsi
-  return !profil.value.judul && !profil.value.deskripsi;
-})
-
-// --- METHODS ---
-const openModal = (mode) => {
-  // Salin data profil ke form untuk diedit
-  formData.value = { ...profil.value };
-  showModal.value = true;
-}
-
-const closeModal = () => {
-  showModal.value = false;
-  errorMessage.value = '';
-}
-
-// --- API METHODS (MENGGUNAKAN auth.api) ---
-const fetchProfil = async () => {
-  isLoading.value = true;
-  errorMessage.value = '';
-  
-  try {
-    // PERUBAHAN 2: Gunakan auth.api yang sudah dikonfigurasi
-    const response = await auth.api.get('/profile-descs');
-    const allProfiles = response.data.data;
-
-    // Cari data profil yang jenisnya 'about'
-    const aboutProfile = allProfiles.find(item => item.jenis === 'about');
-
-    if (aboutProfile) {
-      profil.value = aboutProfile;
-    } else {
-      // Jika tidak ada, kosongkan state
-      profil.value = { id: null, judul: '', deskripsi: '' };
-    }
-  } catch (err) {
-    console.error('Error fetching profile:', err);
-    errorMessage.value = err.response?.data?.message || 'Gagal memuat data profil. Silakan coba lagi.';
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-const handleSave = async () => {
-  isSaving.value = true;
-  errorMessage.value = '';
-
-  try {
-    const payload = {
-      judul: formData.value.judul,
-      deskripsi: formData.value.deskripsi,
-      jenis: 'about' // PERUBAHAN 3: Selalu kirim jenis 'about'
-    };
-
-    let response;
-    if (profil.value.id) {
-      // Jika ID ada, lakukan update (PUT)
-      response = await auth.api.put(`/profile-descs/${profil.value.id}`, payload);
-    } else {
-      // Jika tidak ada ID, lakukan create baru (POST)
-      response = await auth.api.post('/profile-descs', payload);
-    }
-
-    // Update state dengan data terbaru dari server
-    profil.value = response.data.data;
-    
-    closeModal();
-    alert('Profil KBMK berhasil disimpan!');
-  } catch (err) {
-    console.error('Error saving profile:', err);
-    if (err.response?.status === 422 && err.response.data.errors) {
-      const errors = err.response.data.errors;
-      let errorMsg = 'Terjadi kesalahan validasi:\n';
-      for (const field in errors) {
-        errorMsg += `${errors[field].join(', ')}\n`;
-      }
-      errorMessage.value = errorMsg;
-    } else {
-      errorMessage.value = err.response?.data?.message || 'Gagal menyimpan profil. Periksa izin Anda.';
-    }
-  } finally {
-    isSaving.value = false;
-  }
-}
-
-// Load data saat komponen pertama kali dimuat
-onMounted(() => {
-  fetchProfil();
-})
-</script>
 
 <style scoped>
 /* --- General Layout --- */

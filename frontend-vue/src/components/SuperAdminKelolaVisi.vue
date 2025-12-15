@@ -1,37 +1,158 @@
+<script setup>
+import { ref, computed, onMounted, inject } from 'vue'
+
+// --- INJECT DATA DARI APP.VUE ---
+const auth = inject('auth');
+
+// --- STATE ---
+const visiMisi = ref({
+  visi: { id: null, deskripsi: '' },
+  misi: { id: null, deskripsi: '' }
+})
+
+const isLoading = ref(false)
+const isSaving = ref(false)
+const errorMessage = ref('')
+const showModal = ref(false)
+const formData = ref({
+  visiText: '',
+  misiText: ''
+})
+
+// --- COMPUTED ---
+const modalTitle = computed(() => 'Edit Visi & Misi')
+
+const visiMisiWithParagraphs = computed(() => {
+  return {
+    visi: visiMisi.value.visi.deskripsi.split(/\n\s*\n/).filter(p => p.trim() !== ''),
+    misi: visiMisi.value.misi.deskripsi.split('\n').filter(p => p.trim() !== '')
+  }
+})
+
+const isDataEmpty = computed(() => {
+  return !visiMisi.value.visi.deskripsi && !visiMisi.value.misi.deskripsi;
+})
+
+// --- METHODS ---
+const openModal = (mode) => {
+  formData.value = {
+    visiText: visiMisi.value.visi.deskripsi,
+    misiText: visiMisi.value.misi.deskripsi
+  }
+  showModal.value = true;
+}
+
+const closeModal = () => {
+  showModal.value = false;
+  errorMessage.value = '';
+}
+
+// --- API METHODS ---
+const fetchVisiMisi = async () => {
+  // PERBAIKAN: Tambahkan pemeriksaan keamanan
+  if (!auth || !auth.value || !auth.value.api) {
+    console.error("Auth atau API tidak tersedia saat fetchVisiMisi");
+    return;
+  }
+
+  isLoading.value = true;
+  errorMessage.value = '';
+  
+  try {
+    const response = await auth.value.api.get('/profile-descs');
+    const data = response.data.data;
+
+    const visiData = data.find(item => item.jenis === 'visi');
+    const misiData = data.find(item => item.jenis === 'misi');
+
+    visiMisi.value = {
+      visi: { id: visiData ? visiData.id : null, deskripsi: visiData ? visiData.deskripsi : '' },
+      misi: { id: misiData ? misiData.id : null, deskripsi: misiData ? misiData.deskripsi : '' }
+    };
+  } catch (err) {
+    console.error('Error fetching visi misi:', err);
+    errorMessage.value = err.response?.data?.message || 'Gagal memuat data. Periksa izin Anda.';
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+const handleSave = async () => {
+  // PERBAIKAN: Tambahkan pemeriksaan keamanan
+  if (!auth || !auth.value || !auth.value.api) {
+    console.error("Auth atau API tidak tersedia saat handleSave");
+    return;
+  }
+
+  isSaving.value = true;
+  errorMessage.value = '';
+
+  try {
+    const visiPayload = { deskripsi: formData.value.visiText, jenis: 'visi', judul: 'Visi' };
+    const misiPayload = { deskripsi: formData.value.misiText, jenis: 'misi', judul: 'Misi' };
+
+    const updatePromises = [];
+
+    if (visiMisi.value.visi.id) {
+      updatePromises.push(auth.value.api.put(`/profile-descs/${visiMisi.value.visi.id}`, visiPayload));
+    } else {
+      updatePromises.push(auth.value.api.post('/profile-descs', visiPayload));
+    }
+
+    if (visiMisi.value.misi.id) {
+      updatePromises.push(auth.value.api.put(`/profile-descs/${visiMisi.value.misi.id}`, misiPayload));
+    } else {
+      updatePromises.push(auth.value.api.post('/profile-descs', misiPayload));
+    }
+
+    await Promise.all(updatePromises);
+
+    closeModal();
+    alert('Visi & Misi berhasil diperbarui!');
+    await fetchVisiMisi();
+  } catch (err) {
+    console.error('Error saving visi misi:', err);
+    errorMessage.value = err.response?.data?.message || 'Gagal menyimpan data. Periksa izin Anda.';
+  } finally {
+    isSaving.value = false;
+  }
+}
+
+onMounted(() => {
+  fetchVisiMisi();
+})
+</script>
+
+<!-- PERBAIKAN: Gunakan pemeriksaan berlapis di template untuk menampilkan tombol -->
 <template>
   <div class="visi-misi-container">
     <div class="page-header">
       <h1>Visi & Misi</h1>
-      <!-- PERUBAHAN: Tombol Edit hanya muncul untuk Admin -->
-      <button v-if="auth.isAdmin" class="btn btn-primary" @click="openModal('edit')">
+      <!-- PERBAIKAN KRUSIAL: Gunakan isSuperAdmin dan pemeriksaan berlapis -->
+      <button v-if="auth && auth.value && auth.value.isSuperAdmin" class="btn btn-primary" @click="openModal('edit')">
         <i class="fas fa-edit"></i> Edit Visi & Misi
       </button>
     </div>
 
-    <!-- Tampilkan indikator loading -->
     <div v-if="isLoading" class="loading-indicator">
       <i class="fas fa-spinner fa-spin"></i> Memuat data...
     </div>
 
-    <!-- PERUBAHAN: Tampilkan pesan error jika ada -->
     <div v-else-if="errorMessage" class="error-message">
       <i class="fas fa-exclamation-circle"></i> {{ errorMessage }}
       <button class="btn btn-primary" @click="fetchVisiMisi">Coba Lagi</button>
     </div>
 
-    <!-- Tampilkan konten jika tidak loading dan tidak ada error -->
     <div v-else class="visi-misi-content">
-      <!-- Tampilkan pesan jika data kosong -->
       <div v-if="isDataEmpty" class="empty-state">
         <i class="fas fa-info-circle"></i>
         <p>Visi & Misi belum ditambahkan.</p>
-        <!-- PERUBAHAN: Tombol Tambah hanya muncul untuk Admin -->
-        <button v-if="auth.isAdmin" class="btn btn-primary" @click="openModal('edit')">
+        <!-- PERBAIKAN KRUSIAL: Gunakan isSuperAdmin dan pemeriksaan berlapis -->
+        <button v-if="auth && auth.value && auth.value.isSuperAdmin" class="btn btn-primary" @click="openModal('edit')">
           <i class="fas fa-plus"></i> Tambah Sekarang
         </button>
       </div>
 
-      <!-- Tampilkan data jika ada -->
       <div v-else>
         <div class="content-section">
           <h2>Visi</h2>
@@ -43,7 +164,6 @@
         <div class="content-section">
           <h2>Misi</h2>
           <div class="section-text">
-            <!-- Menampilkan misi sebagai poin-poin -->
             <ul>
               <li v-for="(point, index) in visiMisiWithParagraphs.misi" :key="`m-${index}`">
                 {{ point }}
@@ -90,128 +210,6 @@
     </div>
   </div>
 </template>
-
-<script setup>
-import { ref, computed, onMounted, inject } from 'vue'
-
-// --- PERUBAHAN 1: INJECT DATA DARI APP.VUE ---
-const auth = inject('auth');
-
-// --- STATE ---
-// Struktur data untuk menyimpan ID dan deskripsi
-const visiMisi = ref({
-  visi: { id: null, deskripsi: '' },
-  misi: { id: null, deskripsi: '' }
-})
-
-const isLoading = ref(false) // Untuk fetch data awal
-const isSaving = ref(false)  // Untuk proses simpan
-const errorMessage = ref('')
-const showModal = ref(false)
-const formData = ref({
-  visiText: '',
-  misiText: ''
-})
-
-// --- COMPUTED ---
-const modalTitle = computed(() => {
-  return 'Edit Visi & Misi'
-})
-
-// Computed untuk memecah misi menjadi poin-poin
-const visiMisiWithParagraphs = computed(() => {
-  return {
-    visi: visiMisi.value.visi.deskripsi.split(/\n\s*\n/).filter(p => p.trim() !== ''),
-    misi: visiMisi.value.misi.deskripsi.split('\n').filter(p => p.trim() !== '')
-  }
-})
-
-// Computed untuk mengecek apakah data kosong
-const isDataEmpty = computed(() => {
-  return !visiMisi.value.visi.deskripsi && !visiMisi.value.misi.deskripsi;
-})
-
-// --- METHODS ---
-const openModal = (mode) => {
-  // Salin data ke form untuk diedit
-  formData.value = {
-    visiText: visiMisi.value.visi.deskripsi,
-    misiText: visiMisi.value.misi.deskripsi
-  }
-  showModal.value = true;
-}
-
-const closeModal = () => {
-  showModal.value = false;
-  errorMessage.value = '';
-}
-
-// --- API METHODS (MENGGUNAKAN auth.api) ---
-const fetchVisiMisi = async () => {
-  isLoading.value = true;
-  errorMessage.value = '';
-  
-  try {
-    // PERUBAHAN 2: Gunakan auth.api
-    const response = await auth.api.get('/profile-descs');
-    const data = response.data.data;
-
-    // Cari data visi dan misi
-    const visiData = data.find(item => item.jenis === 'visi');
-    const misiData = data.find(item => item.jenis === 'misi');
-
-    visiMisi.value = {
-      visi: { id: visiData ? visiData.id : null, deskripsi: visiData ? visiData.deskripsi : '' },
-      misi: { id: misiData ? misiData.id : null, deskripsi: misiData ? misiData.deskripsi : '' }
-    };
-  } catch (err) {
-    console.error('Error fetching visi misi:', err);
-    errorMessage.value = err.response?.data?.message || 'Gagal memuat data. Periksa izin Anda.';
-  } finally {
-    isLoading.value = false;
-  }
-}
-
-const handleSave = async () => {
-  isSaving.value = true;
-  errorMessage.value = '';
-
-  try {
-    const visiPayload = { deskripsi: formData.value.visiText, jenis: 'visi', judul: 'Visi' };
-    const misiPayload = { deskripsi: formData.value.misiText, jenis: 'misi', judul: 'Misi' };
-
-    const updatePromises = [];
-
-    if (visiMisi.value.visi.id) {
-      updatePromises.push(auth.api.put(`/profile-descs/${visiMisi.value.visi.id}`, visiPayload));
-    } else {
-      updatePromises.push(auth.api.post('/profile-descs', visiPayload));
-    }
-
-    if (visiMisi.value.misi.id) {
-      updatePromises.push(auth.api.put(`/profile-descs/${visiMisi.value.misi.id}`, misiPayload));
-    } else {
-      updatePromises.push(auth.api.post('/profile-descs', misiPayload));
-    }
-
-    await Promise.all(updatePromises);
-
-    closeModal();
-    alert('Visi & Misi berhasil diperbarui!');
-    await fetchVisiMisi(); // Ambil ulang data untuk memastikan tampilan terbaru
-  } catch (err) {
-    console.error('Error saving visi misi:', err);
-    errorMessage.value = err.response?.data?.message || 'Gagal menyimpan data. Periksa izin Anda.';
-  } finally {
-    isSaving.value = false;
-  }
-}
-
-// Load data saat komponen pertama kali dimuat
-onMounted(() => {
-  fetchVisiMisi();
-})
-</script>
 
 <style scoped>
 /* --- General Layout --- */
